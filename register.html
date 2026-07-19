@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediQueue AI – Registration</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+</head>
+<body class="auth-page">
+  <div class="auth-card" style="max-width: 480px;">
+    <div class="auth-header">
+      <div class="logo">MQ</div>
+      <h2>Create an Account</h2>
+      <p>Join the Smart Hospital Queue System</p>
+    </div>
+
+    <form id="register-form">
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" class="form-control" placeholder="John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" class="form-control" placeholder="name@example.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="Min 6 characters" required minlength="6">
+      </div>
+
+      <div class="form-group">
+        <label for="role">Select Role</label>
+        <select id="role" class="form-control" style="background-color: white;" required>
+          <option value="patient">Patient</option>
+          <option value="doctor">Doctor</option>
+          <option value="receptionist">Receptionist</option>
+          <option value="admin">Administrator</option>
+        </select>
+      </div>
+
+      <div id="dept-group" class="form-group" style="display: none;">
+        <label for="department">Department Assignment</label>
+        <select id="department" class="form-control" style="background-color: white;">
+          <option value="">Select Department</option>
+          <option value="General Medicine">General Medicine</option>
+          <option value="Pediatrics">Pediatrics</option>
+          <option value="Cardiology">Cardiology</option>
+          <option value="Emergency">Emergency</option>
+          <option value="Dermatology">Dermatology</option>
+          <option value="Neurology">Neurology</option>
+          <option value="Orthopedics">Orthopedics</option>
+        </select>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.75rem;">
+        Create Account
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>Already have an account? <a href="index.html" class="btn-link">Sign In</a></p>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- App Logic -->
+  <script type="module" src="js/register.js"></script>
+</body>
+</html>

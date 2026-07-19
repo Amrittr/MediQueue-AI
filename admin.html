@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediQueue AI – Admin Dashboard</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Container -->
+    <div id="sidebar-container"></div>
+
+    <div class="main-content">
+      <!-- Navbar Container -->
+      <div id="navbar-container"></div>
+
+      <!-- Main Scrollable Dashboard Content -->
+      <div class="page-body">
+        
+        <!-- Header Panel -->
+        <div class="page-header-row">
+          <div class="page-title">
+            <h2>Hospital Administration Panel</h2>
+            <p>Monitor system load, manage clinic staff, and inspect algorithms.</p>
+          </div>
+          
+          <div class="tabs-bar">
+            <button class="tab-btn active" data-tab="analytics">Analytics & Load</button>
+            <button class="tab-btn" data-tab="doctors">Manage Doctors</button>
+            <button class="tab-btn" data-tab="depts">Departments</button>
+            <button class="tab-btn" data-tab="graph">Graph ADT View</button>
+            <button class="tab-btn" data-tab="logs">System Logs</button>
+          </div>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="grid grid-cols-4" style="margin-bottom: 2rem;">
+          <div class="clinic-card metric-card">
+            <p class="metric-label">Total Patient Files</p>
+            <p class="metric-value" id="metric-total-patients">0</p>
+          </div>
+          <div class="clinic-card metric-card">
+            <p class="metric-label">Doctors Online</p>
+            <p class="metric-value" id="metric-online-docs">0</p>
+          </div>
+          <div class="clinic-card metric-card">
+            <p class="metric-label">Emergency Code Red</p>
+            <p class="metric-value" id="metric-emergency-count" style="color: var(--color-danger);">0</p>
+          </div>
+          <div class="clinic-card metric-card">
+            <p class="metric-label">Avg. Waiting Time</p>
+            <p class="metric-value" id="metric-avg-waiting">0 <span style="font-size: 0.85rem; font-weight: 500; color: var(--color-text-medium);">mins</span></p>
+          </div>
+        </div>
+
+        <!-- Tab Content 1: Analytics -->
+        <div id="tab-analytics" class="tab-content-panel">
+          <div class="grid" style="grid-template-columns: 2fr 1fr;">
+            <!-- Bar Chart -->
+            <div class="clinic-card" style="min-height: 380px;">
+              <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-medium); margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px;">Department Active Queues Load</h3>
+              <div style="position: relative; height: 280px; width: 100%;">
+                <canvas id="dept-chart"></canvas>
+              </div>
+            </div>
+            <!-- Doughnut Chart -->
+            <div class="clinic-card" style="min-height: 380px;">
+              <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-medium); margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px;">Emergency Triages</h3>
+              <div style="position: relative; height: 280px; width: 100%;">
+                <canvas id="emergency-chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 2: Manage Doctors -->
+        <div id="tab-doctors" class="tab-content-panel" style="display: none;">
+          <div class="grid" style="grid-template-columns: 1fr 2fr;">
+            <!-- Form to Add Doctor -->
+            <div class="clinic-card" style="height: fit-content;">
+              <h3 style="font-weight: 700; color: var(--color-text-dark); margin-bottom: 1.25rem;">Add Doctor Profile</h3>
+              <form id="add-doctor-form">
+                <div class="form-group">
+                  <label for="doc-name">Doctor Name</label>
+                  <input type="text" id="doc-name" class="form-control" placeholder="Dr. John Watson" required>
+                </div>
+                <div class="form-group">
+                  <label for="doc-email">Email Address</label>
+                  <input type="email" id="doc-email" class="form-control" placeholder="watson@hospital.com" required>
+                </div>
+                <div class="form-group">
+                  <label for="doc-dept">Department</label>
+                  <select id="doc-dept" class="form-control" style="background-color: white;" required>
+                    <option value="">Select Department</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="doc-spec">Specialization</label>
+                  <input type="text" id="doc-spec" class="form-control" placeholder="Neurology" required>
+                </div>
+                <div class="form-group">
+                  <label for="doc-exp">Experience</label>
+                  <input type="text" id="doc-exp" class="form-control" placeholder="8 Years" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                  <span class="material-icons-outlined" style="font-size: 1.1rem;">add</span>
+                  Save Doctor
+                </button>
+              </form>
+            </div>
+
+            <!-- Doctors List Table -->
+            <div class="table-container">
+              <table class="clinic-table">
+                <thead>
+                  <tr>
+                    <th>Doctor Details</th>
+                    <th>Department</th>
+                    <th>Experience</th>
+                    <th>Status</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="doctors-list-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 3: Departments -->
+        <div id="tab-depts" class="tab-content-panel" style="display: none;">
+          <div class="grid" style="grid-template-columns: 1fr 2fr;">
+            <!-- Form to Add Department -->
+            <div class="clinic-card" style="height: fit-content;">
+              <h3 style="font-weight: 700; color: var(--color-text-dark); margin-bottom: 1.25rem;">Create Department</h3>
+              <form id="add-dept-form">
+                <div class="form-group">
+                  <label for="dept-name">Department Name</label>
+                  <input type="text" id="dept-name" class="form-control" placeholder="Oncology" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
+                  <span class="material-icons-outlined" style="font-size: 1.1rem;">add</span>
+                  Create Department
+                </button>
+              </form>
+            </div>
+
+            <!-- Departments List Table -->
+            <div class="table-container">
+              <table class="clinic-table">
+                <thead>
+                  <tr>
+                    <th>Dept ID</th>
+                    <th>Department Name</th>
+                    <th>Doctors Count</th>
+                    <th style="text-align: right;">Action</th>
+                  </tr>
+                </thead>
+                <tbody id="depts-list-body">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 4: Graph ADT View -->
+        <div id="tab-graph" class="tab-content-panel" style="display: none;">
+          <div class="clinic-card">
+            <h3 style="font-weight: 700; color: var(--color-text-dark); margin-bottom: 0.5rem;">Adjacency List Graph ADT Visualizer</h3>
+            <p style="font-size: 0.85rem; color: var(--color-text-medium); margin-bottom: 1.5rem;">Displays the active structural map of the hospital hierarchy (Hospital &rarr; Departments &rarr; Assumed Doctors &rarr; Checked-in Patients).</p>
+            <div id="graph-visual-container" class="graph-tree-container">
+              <!-- Visualized tree root -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Content 5: System Logs -->
+        <div id="tab-logs" class="tab-content-panel" style="display: none;">
+          <div class="table-container">
+            <table class="clinic-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Action</th>
+                  <th>Performed By</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="logs-list-body">
+                <!-- Dynamic logs -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- App logic -->
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

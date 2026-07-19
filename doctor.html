@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediQueue AI – Doctor Portal</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar Container -->
+    <div id="sidebar-container"></div>
+
+    <div class="main-content">
+      <!-- Navbar Container -->
+      <div id="navbar-container"></div>
+
+      <!-- Main Doctor View -->
+      <div class="page-body">
+        
+        <!-- Doctor Meta Header -->
+        <div class="page-header-row" style="background-color: white; border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 2rem; flex-direction: row; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 id="doc-meta-name" style="font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; color: var(--color-text-dark);">Dr. Loading...</h2>
+            <p id="doc-meta-specialty" style="font-size: 0.75rem; color: var(--color-primary); font-weight: 600; margin-top: 0.15rem; text-transform: uppercase;">Department • Specialization</p>
+            <div style="display: flex; gap: 1rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--color-text-medium); font-weight: 600;">
+              <span>Completed Today: <span id="doc-meta-completed" style="color: var(--color-text-dark); font-weight: bold;">0</span></span>
+              <span>Queue Length: <span id="doc-meta-queuesize" style="color: var(--color-text-dark); font-weight: bold;">0</span></span>
+            </div>
+          </div>
+
+          <button id="toggle-queue-btn" class="btn" style="padding: 0.6rem 1.25rem;">
+            <span class="material-icons-outlined" style="font-size: 1.25rem;">pause</span>
+            <span>Pause Consultations</span>
+          </button>
+        </div>
+
+        <!-- Pause Alert Banner -->
+        <div id="paused-alert-banner" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background-color: var(--color-warning-light); border: 1px solid #fde68a; color: var(--color-warning-hover); border-radius: var(--radius-md); font-weight: 500; font-size: 0.85rem;" class="flex items-center gap-2">
+          <span class="material-icons-outlined" style="vertical-align: middle;">pause_circle_filled</span>
+          <span>Your queue is paused. Patients will remain in the lobby and won't be called.</span>
+        </div>
+
+        <div class="page-header-row" style="margin-top: 1rem;">
+          <div class="page-title">
+            <h2>Queue Dashboard</h2>
+            <p>Write clinical summaries, consult patients, or sort queue listings.</p>
+          </div>
+          
+          <div class="tabs-bar">
+            <button class="tab-btn active" data-tab="consult">Consult Dashboard</button>
+            <button class="tab-btn" data-tab="control">Queue Control</button>
+          </div>
+        </div>
+
+        <!-- Columns Section -->
+        <div class="grid" style="grid-template-columns: 2fr 1fr;">
+          
+          <!-- Left Column: Active Patient Consultation / Empty State -->
+          <div>
+            <!-- Tab Content 1: Active Consultation Summary -->
+            <div id="tab-consult" class="tab-content-panel">
+              <div id="active-consultation-card" class="clinic-card" style="display: none;">
+                <span style="font-size: 0.7rem; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: 0.5px;">Active Consultation</span>
+                
+                <div style="border-bottom: 1px solid var(--color-border); padding-bottom: 1rem; margin-bottom: 1.5rem; margin-top: 0.25rem; display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div>
+                    <h3 id="consult-pat-name" style="font-size: 1.15rem; font-weight: 700; color: var(--color-text-dark);">Patient Name</h3>
+                    <p id="consult-pat-details" style="font-size: 0.75rem; color: var(--color-text-light); margin-top: 0.15rem;">ID: P-XXXXXX • Age: XX • Gender: X</p>
+                  </div>
+                  <span id="consult-pat-priority-badge" class="badge badge-medium">Medium Priority</span>
+                </div>
+
+                <div id="consult-pat-symptoms-box" style="margin-bottom: 1.5rem; padding: 0.85rem; background-color: var(--color-bg-app); border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.8rem;">
+                  <p style="font-weight: 700; color: var(--color-text-medium); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.5px;">Symptoms Reported:</p>
+                  <p id="consult-pat-symptoms-text" style="color: var(--color-text-dark); margin-top: 0.25rem;">Patient symptoms text...</p>
+                </div>
+
+                <!-- Consultation Form -->
+                <form id="consultation-form">
+                  <div class="form-group">
+                    <label for="medical-notes" style="display: flex; align-items: center; gap: 0.25rem;">
+                      <span class="material-icons-outlined" style="font-size: 1.1rem; color: var(--color-text-light);">assignment</span>
+                      Clinical Diagnosis & Medical Notes
+                    </label>
+                    <textarea id="medical-notes" class="form-control" placeholder="Describe diagnosis findings, patient conditions..." style="min-height: 120px; resize: vertical;" required></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="prescription" style="display: flex; align-items: center; gap: 0.25rem;">
+                      <span class="material-icons-outlined" style="font-size: 1.1rem; color: var(--color-text-light);">local_pharmacy</span>
+                      Prescription / Medication Details
+                    </label>
+                    <textarea id="prescription" class="form-control" placeholder="Paracetamol 650mg - thrice daily after meals (5 Days)..." style="min-height: 80px; resize: vertical;" required></textarea>
+                  </div>
+
+                  <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--color-border); padding-top: 1.25rem; margin-top: 1.5rem;">
+                    <button type="button" id="skip-pat-btn" class="btn btn-secondary" style="color: var(--color-warning-hover); border-color: #fde68a;">
+                      <span class="material-icons-outlined" style="font-size: 1.1rem;">skip_next</span>
+                      Skip Patient
+                    </button>
+                    <button type="submit" id="complete-pat-btn" class="btn btn-primary">
+                      <span class="material-icons-outlined" style="font-size: 1.1rem;">check</span>
+                      Complete & Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Empty consultation state -->
+              <div id="empty-consultation-state" class="clinic-card" style="text-align: center; padding: 3.5rem; display: block;">
+                <span class="material-icons-outlined" style="font-size: 3rem; color: var(--color-text-light);">assignment_ind</span>
+                <h3 style="font-weight: 700; color: var(--color-text-dark); margin-top: 1rem;">No Active Patient</h3>
+                <p style="font-size: 0.85rem; color: var(--color-text-medium); margin-top: 0.25rem; margin-bottom: 1.5rem;">There is no patient currently inside your consulting room. Use the queue control panel to call the next patient.</p>
+                <button id="call-next-empty-btn" class="btn btn-primary">
+                  <span class="material-icons-outlined" style="font-size: 1.15rem;">play_arrow</span>
+                  Call Next Patient
+                </button>
+              </div>
+            </div>
+
+            <!-- Tab Content 2: Queue Control -->
+            <div id="tab-control" class="tab-content-panel" style="display: none;">
+              <div class="table-container">
+                <table class="clinic-table">
+                  <thead>
+                    <tr>
+                      <th>Patient Info</th>
+                      <th>Priority Score</th>
+                      <th>Emergency Level</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="waiting-queue-body">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Queue Sidebar Mini-View -->
+          <div>
+            <div class="clinic-card" style="padding: 1.25rem; min-height: 380px;">
+              <h3 style="font-size: 0.8rem; font-weight: 700; color: var(--color-text-medium); text-transform: uppercase; margin-bottom: 1rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.5rem; letter-spacing: 0.5px;">Queue Mini-View</h3>
+              <div id="sidebar-queue-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <!-- Queue patient list items -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- App logic -->
+  <script type="module" src="js/doctor.js"></script>
+</body>
+</html>
