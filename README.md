@@ -155,3 +155,8 @@ To easily demonstrate the complete workflow during college presentations:
    - Log in as the Receptionist. Search for your patient name, and click **Check In**. Alternatively, use **Scan QR Pass** to simulate scanning using your webcam or phone camera!
    - Log in as the Doctor. Note that the patient is loaded into your active priority queue. Click **Call** to start consultation, write medical notes/prescriptions, and click **Complete & Save**.
    - Check the Admin console again to review the Analytics graphs and System Logs auditing.
+   - ## 📄 Project Report
+
+The complete project report is available below:
+
+📥 **[Download Project Report](./DSA%20project%20report.pdf)**
