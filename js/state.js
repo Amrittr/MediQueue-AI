@@ -893,16 +893,43 @@ export async function bookAppointment(patientId, appointmentData) {
 
     const patientRef = doc(db, "patients", patientId);
     const nowStr = new Date().toISOString();
-    await updateDoc(patientRef, {
+    
+    // Check if patient document exists, if not, write basic fields
+    const patientDoc = await getDoc(patientRef);
+    const patientDataToSave = {
       appointmentTime: `${appointmentData.date} ${appointmentData.time}`,
       doctorAssigned: appointmentData.doctorId,
       department: appointmentData.department,
       status: "CheckedIn",
       checkInTime: nowStr,
       updatedAt: nowStr
-    });
+    };
+    
+    if (!patientDoc.exists()) {
+      patientDataToSave.patientId = patientId;
+      patientDataToSave.name = state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient";
+      patientDataToSave.email = state.currentUser?.email || "";
+      patientDataToSave.gender = "";
+      patientDataToSave.age = "25";
+      patientDataToSave.phone = "";
+      patientDataToSave.bloodGroup = "";
+      patientDataToSave.symptoms = appointmentData.notes || "";
+      patientDataToSave.priorityScore = 0;
+      patientDataToSave.emergencyLevel = appointmentData.emergencyLevel || "Low";
+      patientDataToSave.waitingMinutes = 0;
+      patientDataToSave.createdAt = nowStr;
+    } else {
+      if (appointmentData.emergencyLevel) {
+        patientDataToSave.emergencyLevel = appointmentData.emergencyLevel;
+      }
+      if (appointmentData.notes !== undefined) {
+        patientDataToSave.symptoms = appointmentData.notes;
+      }
+    }
 
-    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In)`);
+    await setDoc(patientRef, patientDataToSave, { merge: true });
+
+    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
   } catch (e) {
     console.error("Book appointment database write failed, falling back to local simulation:", e);
     
@@ -911,8 +938,8 @@ export async function bookAppointment(patientId, appointmentData) {
     const nowStr = new Date().toISOString();
     const updatedPatient = {
       patientId,
-      name: state.userData?.name || "Test Patient",
-      email: state.userData?.email || "",
+      name: state.userData?.name || state.currentUser?.email?.split('@')[0] || "Test Patient",
+      email: state.currentUser?.email || "",
       gender: "Male",
       age: "25",
       phone: "1234567890",
@@ -923,7 +950,7 @@ export async function bookAppointment(patientId, appointmentData) {
       department: appointmentData.department,
       checkInTime: nowStr,
       priorityScore: 0,
-      emergencyLevel: "Low",
+      emergencyLevel: appointmentData.emergencyLevel || "Low",
       status: "CheckedIn",
       waitingMinutes: 0,
       createdAt: nowStr,

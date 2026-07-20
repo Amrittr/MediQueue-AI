@@ -97,7 +97,8 @@ subscribe((state) => {
   cachedDoctors = state.doctors;
 
   // Render static credentials
-  document.getElementById("patient-welcome-title").innerText = `Welcome, ${state.userData.name}`;
+  const displayName = state.userData.name || state.currentUser.email?.split('@')[0] || "Patient";
+  document.getElementById("patient-welcome-title").innerText = `Welcome, ${displayName}`;
   document.getElementById("patient-meta-id").innerText = `Patient ID: ${currentPatientId}`;
 
   // Generate QR pass link details
@@ -238,6 +239,7 @@ bookingForm.addEventListener("submit", async (e) => {
   const date = document.getElementById("book-date").value;
   const time = document.getElementById("book-time").value;
   const notes = document.getElementById("book-notes").value;
+  const isEmergency = document.getElementById("book-emergency")?.checked || false;
 
   if (!dept || !doctorId || !date || !time) {
     showToast("Please fill in all slots.", "error");
@@ -252,7 +254,8 @@ bookingForm.addEventListener("submit", async (e) => {
       department: dept,
       date,
       time,
-      notes
+      notes,
+      emergencyLevel: isEmergency ? "Critical" : "Low"
     });
 
     alert("Slot booked!");

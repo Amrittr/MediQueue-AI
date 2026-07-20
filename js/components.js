@@ -65,7 +65,7 @@ export function initLayout(activePath) {
             </div>
 
             <div class="sidebar-profile">
-              <p class="profile-name" title="${user.name}">${user.name}</p>
+              <p class="profile-name" title="${user.name || user.email?.split('@')[0] || 'User'}">${user.name || user.email?.split('@')[0] || 'User'}</p>
               <p class="profile-role">${user.role}</p>
               ${user.department ? `<p class="profile-dept" title="${user.department}">${user.department}</p>` : ''}
             </div>
