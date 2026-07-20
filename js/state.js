@@ -137,7 +137,13 @@ function processDSAModels() {
   state.doctors.forEach(doctor => {
     const docPQ = new PriorityQueue();
     const docPatients = activeCheckedInPatients.filter(
-      p => (p.doctorAssigned === doctor.doctorId || p.department === doctor.department || !doctor.department) && p.status === "CheckedIn"
+      p => (
+        !p.doctorAssigned ||
+        p.doctorAssigned === "" ||
+        p.doctorAssigned === doctor.doctorId ||
+        (p.department && doctor.department && p.department.toLowerCase() === doctor.department.toLowerCase()) ||
+        !doctor.department
+      ) && p.status === "CheckedIn"
     );
 
     docPatients.forEach(p => {
@@ -149,6 +155,13 @@ function processDSAModels() {
   });
 
   state.doctorQueues = newDoctorQueues;
+}
+
+function withTimeout(promise, ms = 2000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+  ]);
 }
 
 // Start real-time Firestore synchronization
@@ -895,7 +908,7 @@ export async function bookAppointment(patientId, appointmentData) {
 
   if (!assignedDoctorId || assignedDoctorId === "" || assignedDoctorName === "Unassigned") {
     const matchingDoctor = state.doctors.find(
-      d => d.department && d.department.toLowerCase() === (appointmentData.department || "").toLowerCase()
+      d => d.department && (appointmentData.department || "").toLowerCase().includes(d.department.toLowerCase()) || d.department.toLowerCase().includes((appointmentData.department || "").toLowerCase())
     );
     if (matchingDoctor) {
       assignedDoctorId = matchingDoctor.doctorId;
@@ -909,9 +922,42 @@ export async function bookAppointment(patientId, appointmentData) {
   const nowStr = new Date().toISOString();
   const appointmentTimeStr = `${appointmentData.date} ${appointmentData.time}`;
 
+  const patientDataToSave = {
+    patientId,
+    name: state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient",
+    email: state.currentUser?.email || "",
+    gender: "Other",
+    age: "30",
+    phone: "",
+    bloodGroup: "",
+    symptoms: appointmentData.notes || "",
+    appointmentTime: appointmentTimeStr,
+    doctorAssigned: assignedDoctorId,
+    department: appointmentData.department,
+    status: "CheckedIn",
+    tokenNumber,
+    checkInTime: nowStr,
+    priorityScore: 0,
+    emergencyLevel: appointmentData.emergencyLevel || "Low",
+    waitingMinutes: 0,
+    createdAt: nowStr,
+    updatedAt: nowStr
+  };
+
+  // 1. Immediately update in-memory state so UI updates WITHOUT delay
+  let pIdx = state.patients.findIndex(p => p.patientId === patientId);
+  if (pIdx > -1) {
+    state.patients[pIdx] = { ...state.patients[pIdx], ...patientDataToSave };
+  } else {
+    state.patients.push(patientDataToSave);
+  }
+  processDSAModels();
+  notify();
+
+  // 2. Perform Firestore network operations asynchronously with a 2-second timeout to avoid blocking UI
   try {
     const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
-    await setDoc(doc(db, "appointments", appointmentId), {
+    await withTimeout(setDoc(doc(db, "appointments", appointmentId), {
       appointmentId,
       patientId,
       doctorId: assignedDoctorId,
@@ -923,104 +969,17 @@ export async function bookAppointment(patientId, appointmentData) {
       notes: appointmentData.notes || "",
       tokenNumber,
       createdAt: nowStr
-    });
+    }), 2000);
 
     const patientRef = doc(db, "patients", patientId);
-    let patientDocExists = false;
-    let existingData = {};
-    try {
-      const patientDoc = await getDoc(patientRef);
-      if (patientDoc.exists()) {
-        patientDocExists = true;
-        existingData = patientDoc.data();
-      }
-    } catch (e) {
-      console.warn("Could not check patient document:", e);
-    }
+    await withTimeout(setDoc(patientRef, patientDataToSave, { merge: true }), 2000);
 
-    const patientDataToSave = {
-      patientId,
-      appointmentTime: appointmentTimeStr,
-      doctorAssigned: assignedDoctorId,
-      department: appointmentData.department,
-      status: "CheckedIn",
-      tokenNumber,
-      checkInTime: nowStr,
-      updatedAt: nowStr
-    };
-
-    if (!patientDocExists) {
-      patientDataToSave.name = existingData.name || state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient";
-      patientDataToSave.email = existingData.email || state.currentUser?.email || "";
-      patientDataToSave.gender = existingData.gender || "Other";
-      patientDataToSave.age = existingData.age || "30";
-      patientDataToSave.phone = existingData.phone || "";
-      patientDataToSave.bloodGroup = existingData.bloodGroup || "";
-      patientDataToSave.symptoms = appointmentData.notes || "";
-      patientDataToSave.priorityScore = 0;
-      patientDataToSave.emergencyLevel = appointmentData.emergencyLevel || "Low";
-      patientDataToSave.waitingMinutes = 0;
-      patientDataToSave.createdAt = nowStr;
-    } else {
-      patientDataToSave.emergencyLevel = appointmentData.emergencyLevel || existingData.emergencyLevel || "Low";
-      if (appointmentData.notes) {
-        patientDataToSave.symptoms = appointmentData.notes;
-      }
-    }
-
-    await setDoc(patientRef, patientDataToSave, { merge: true });
-
-    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber}, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
-
-    // Update local state directly for fast UI updates
-    let pIdx = state.patients.findIndex(p => p.patientId === patientId);
-    if (pIdx > -1) {
-      state.patients[pIdx] = { ...state.patients[pIdx], ...patientDataToSave };
-    } else {
-      state.patients.push(patientDataToSave);
-    }
-    processDSAModels();
-    notify();
-
-    return tokenNumber;
+    logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber})`);
   } catch (e) {
-    console.error("Book appointment database write failed, falling back to local simulation:", e);
-
-    let patientIndex = state.patients.findIndex(p => p.patientId === patientId);
-    const updatedPatient = {
-      patientId,
-      name: state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient",
-      email: state.currentUser?.email || "",
-      gender: "Male",
-      age: "30",
-      phone: "",
-      bloodGroup: "",
-      symptoms: appointmentData.notes || "",
-      appointmentTime: appointmentTimeStr,
-      doctorAssigned: assignedDoctorId,
-      department: appointmentData.department,
-      checkInTime: nowStr,
-      priorityScore: 0,
-      emergencyLevel: appointmentData.emergencyLevel || "Low",
-      status: "CheckedIn",
-      tokenNumber,
-      waitingMinutes: 0,
-      createdAt: nowStr,
-      updatedAt: nowStr
-    };
-
-    if (patientIndex > -1) {
-      state.patients[patientIndex] = {
-        ...state.patients[patientIndex],
-        ...updatedPatient
-      };
-    } else {
-      state.patients.push(updatedPatient);
-    }
-    processDSAModels();
-    notify();
-    return tokenNumber;
+    console.warn("Firestore write network delay/offline fallback, kept local state updated:", e);
   }
+
+  return tokenNumber;
 }
 
 export function simulateLocalLogin(email, role, name) {
