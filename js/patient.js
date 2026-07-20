@@ -60,28 +60,7 @@ let cachedDepts = [];
 
 // Dropdown mappings
 const bookDeptSelect = document.getElementById("book-dept");
-const bookDocSelect = document.getElementById("book-doc");
 const profileDeptSelect = document.getElementById("profile-dept");
-const profileDocSelect = document.getElementById("profile-doc");
-
-function setupDeptDoctorDropdownMapping(deptSelect, docSelect) {
-  deptSelect.addEventListener("change", () => {
-    const deptVal = deptSelect.value;
-    if (!deptVal) {
-      docSelect.innerHTML = `<option value="">Select Doctor</option>`;
-      docSelect.disabled = true;
-      return;
-    }
-    // Filter available doctors in department
-    const filteredDocs = cachedDoctors.filter(d => d.department === deptVal && d.availability);
-    docSelect.innerHTML = `<option value="">Select Doctor</option>` + 
-      filteredDocs.map(d => `<option value="${d.doctorId}">Dr. ${d.name} (${d.specialization})</option>`).join("");
-    docSelect.disabled = false;
-  });
-}
-
-setupDeptDoctorDropdownMapping(bookDeptSelect, bookDocSelect);
-setupDeptDoctorDropdownMapping(profileDeptSelect, profileDocSelect);
 
 // Form elements
 const bookingForm = document.getElementById("appointment-booking-form");
@@ -126,10 +105,6 @@ subscribe((state) => {
     
     if (currentPatientProfile.department) {
       profileDeptSelect.value = currentPatientProfile.department;
-      // Trigger change event to populate doctors list
-      const event = new Event('change');
-      profileDeptSelect.dispatchEvent(event);
-      profileDocSelect.value = currentPatientProfile.doctorAssigned || "";
     }
   }
 
@@ -255,22 +230,20 @@ subscribe((state) => {
 bookingForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const dept = bookDeptSelect.value;
-  const doctorId = bookDocSelect.value;
   const date = document.getElementById("book-date").value;
   const time = document.getElementById("book-time").value;
   const notes = document.getElementById("book-notes").value;
   const isEmergency = document.getElementById("book-emergency")?.checked || false;
 
-  if (!dept || !doctorId || !date || !time) {
+  if (!dept || !date || !time) {
     showToast("Please fill in all slots.", "error");
     return;
   }
 
   try {
-    const docObj = cachedDoctors.find(d => d.doctorId === doctorId);
     const tokenNum = await bookAppointment(currentPatientId, {
-      doctorId,
-      doctorName: docObj ? docObj.name : "Assigned Specialist",
+      doctorId: "",
+      doctorName: "Unassigned",
       department: dept,
       date,
       time,
@@ -295,7 +268,6 @@ profileForm.addEventListener("submit", async (e) => {
   const bloodGroup = document.getElementById("profile-blood").value;
   const symptoms = document.getElementById("profile-symptoms").value;
   const preferredDept = profileDeptSelect.value;
-  const preferredDoc = profileDocSelect.value;
 
   try {
     await editPatient(currentPatientId, {
@@ -305,7 +277,6 @@ profileForm.addEventListener("submit", async (e) => {
       bloodGroup,
       symptoms,
       department: preferredDept,
-      doctorAssigned: preferredDoc,
       performedBy: "Patient Profile Editor"
     });
     showToast("Profile file details updated successfully!", "success");

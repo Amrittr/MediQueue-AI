@@ -539,10 +539,10 @@ export async function registerPatient(patientData) {
 export async function editPatient(patientId, updatedData) {
   try {
     const patientRef = doc(db, "patients", patientId);
-    await updateDoc(patientRef, {
+    await setDoc(patientRef, {
       ...updatedData,
       updatedAt: new Date().toISOString()
-    });
+    }, { merge: true });
     await logAction("Edit Patient", updatedData.performedBy || "System", `Updated details for ${patientId}`);
   } catch (e) {
     console.error("Edit Patient database write failed, falling back to local simulation:", e);
