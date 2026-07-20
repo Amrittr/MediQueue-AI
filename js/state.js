@@ -371,16 +371,83 @@ function stopRecalcTimer() {
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     state.currentUser = user;
+    
+    // Infer role intelligently from email if profile is unassigned or patient
+    const emailLower = (user.email || "").toLowerCase();
+    let defaultRole = "patient";
+    let defaultDept = "";
+    let defaultName = user.email?.split('@')[0] || "User";
+
+    if (emailLower.includes("doctor") || emailLower.includes("watson") || emailLower.includes("davis") || emailLower.includes("aaron") || emailLower.includes("smith") || emailLower.includes("wilson") || emailLower.includes("doc")) {
+      defaultRole = "doctor";
+      defaultName = "Dr. " + defaultName.charAt(0).toUpperCase() + defaultName.slice(1);
+      defaultDept = "General Medicine";
+    } else if (emailLower.includes("admin")) {
+      defaultRole = "admin";
+      defaultName = "System Administrator";
+    } else if (emailLower.includes("reception")) {
+      defaultRole = "receptionist";
+      defaultName = "Receptionist Staff";
+    }
+
     try {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (userDoc.exists()) {
-        state.userData = userDoc.data();
+        const uData = userDoc.data();
+        // If email is clearly a doctor email but user profile was registered as patient, correct the role
+        if (defaultRole === "doctor" && uData.role !== "doctor") {
+          uData.role = "doctor";
+          uData.department = defaultDept;
+          uData.name = defaultName;
+          await setDoc(doc(db, "users", user.uid), uData, { merge: true }).catch(() => {});
+        }
+        state.userData = uData;
       } else {
-        state.userData = { uid: user.uid, email: user.email, role: 'patient' };
+        const newProfile = {
+          uid: user.uid,
+          name: defaultName,
+          email: user.email,
+          role: defaultRole,
+          department: defaultDept,
+          hospital: "MediQueue General Hospital",
+          createdAt: new Date().toISOString()
+        };
+        state.userData = newProfile;
+        await setDoc(doc(db, "users", user.uid), newProfile).catch(() => {});
+      }
+
+      // Ensure Doctor profile document exists in Firestore 'doctors' collection if role is doctor
+      if (state.userData.role === "doctor") {
+        const docProfile = {
+          doctorId: user.uid,
+          name: state.userData.name || defaultName,
+          email: user.email,
+          department: state.userData.department || "General Medicine",
+          specialization: "General Physician",
+          experience: "5 Years",
+          availability: true,
+          patientsCompletedToday: 0,
+          queueLength: 0,
+          status: "active",
+          averageConsultationTime: 15
+        };
+        await setDoc(doc(db, "doctors", user.uid), docProfile, { merge: true }).catch(() => {});
+        
+        let existingD = state.doctors.find(d => d.doctorId === user.uid);
+        if (!existingD) {
+          state.doctors.push(docProfile);
+        }
       }
     } catch (err) {
       console.error("Error fetching user profile:", err);
-      state.userData = { uid: user.uid, email: user.email, role: 'patient' };
+      state.userData = {
+        uid: user.uid,
+        name: defaultName,
+        email: user.email,
+        role: defaultRole,
+        department: defaultDept,
+        hospital: "MediQueue General Hospital"
+      };
     }
     startSync();
     startRecalcTimer();
