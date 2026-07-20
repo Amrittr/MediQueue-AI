@@ -134,6 +134,15 @@ function processDSAModels() {
   state.hospitalGraph = graph;
 
   const newDoctorQueues = {};
+  const allCheckedInPQ = new PriorityQueue();
+
+  activeCheckedInPatients.filter(p => p.status === "CheckedIn").forEach(p => {
+    const score = calculatePriorityScore(p);
+    allCheckedInPQ.enqueue(p, score);
+  });
+  const allSortedCheckedIn = allCheckedInPQ.getSortedPatients();
+  newDoctorQueues["all"] = allSortedCheckedIn;
+
   state.doctors.forEach(doctor => {
     const docPQ = new PriorityQueue();
     const docPatients = activeCheckedInPatients.filter(
@@ -151,7 +160,11 @@ function processDSAModels() {
       docPQ.enqueue(p, score);
     });
 
-    newDoctorQueues[doctor.doctorId] = docPQ.getSortedPatients();
+    const sortedList = docPQ.getSortedPatients();
+    newDoctorQueues[doctor.doctorId] = sortedList.length > 0 ? sortedList : allSortedCheckedIn;
+    if (doctor.department) {
+      newDoctorQueues[doctor.department.toLowerCase()] = sortedList.length > 0 ? sortedList : allSortedCheckedIn;
+    }
   });
 
   state.doctorQueues = newDoctorQueues;

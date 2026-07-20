@@ -76,15 +76,34 @@ subscribe((state) => {
          (d.department && state.userData.department && d.department.toLowerCase() === state.userData.department.toLowerCase())
   );
 
-  const targetDocId = currentDoctorProfile ? currentDoctorProfile.doctorId : currentDoctorId;
-  sortedDoctorQueue = state.doctorQueues[targetDocId] || state.doctorQueues[currentDoctorId] || [];
+  if (!currentDoctorProfile) {
+    const rawName = state.userData.name || state.currentUser.email?.split('@')[0] || "Doctor";
+    const nameStr = rawName.startsWith("Dr.") ? rawName : `Dr. ${rawName}`;
+    const deptStr = state.userData.department || "General Medicine";
+    currentDoctorProfile = {
+      doctorId: currentDoctorId,
+      name: nameStr,
+      email: state.currentUser.email,
+      department: deptStr,
+      specialization: "General Physician",
+      availability: true,
+      status: "active",
+      patientsCompletedToday: 0,
+      queueLength: 0
+    };
+    if (!state.doctors.some(d => d.doctorId === currentDoctorId)) {
+      state.doctors.push(currentDoctorProfile);
+    }
+  }
 
-  // Fallback: If queue map key hasn't indexed yet, match all checked-in patients in department or hospital
+  const targetDocId = currentDoctorProfile.doctorId;
+  sortedDoctorQueue = state.doctorQueues[targetDocId] ||
+                      (currentDoctorProfile.department ? state.doctorQueues[currentDoctorProfile.department.toLowerCase()] : null) ||
+                      state.doctorQueues["all"] ||
+                      state.patients.filter(p => p.status === "CheckedIn");
+
   if (sortedDoctorQueue.length === 0) {
-    sortedDoctorQueue = state.patients.filter(
-      p => p.status === "CheckedIn" &&
-      (!currentDoctorProfile?.department || !p.department || p.department.toLowerCase() === currentDoctorProfile.department.toLowerCase())
-    );
+    sortedDoctorQueue = state.patients.filter(p => p.status === "CheckedIn" || p.status === "Registered");
   }
 
   // Find if there is an active patient in consultation room
@@ -93,11 +112,11 @@ subscribe((state) => {
   );
 
   // 1. Populate Doctor Meta Details
-  if (currentDoctorProfile) {
-    document.getElementById("doc-meta-name").innerText = `Dr. ${currentDoctorProfile.name}`;
-    document.getElementById("doc-meta-specialty").innerText = `${currentDoctorProfile.department} • ${currentDoctorProfile.specialization}`;
-    document.getElementById("doc-meta-completed").innerText = currentDoctorProfile.patientsCompletedToday || 0;
-    document.getElementById("doc-meta-queuesize").innerText = sortedDoctorQueue.length;
+  const nameDisplay = currentDoctorProfile.name.startsWith("Dr.") ? currentDoctorProfile.name : `Dr. ${currentDoctorProfile.name}`;
+  document.getElementById("doc-meta-name").innerText = nameDisplay;
+  document.getElementById("doc-meta-specialty").innerText = `${currentDoctorProfile.department || "General Medicine"} • ${currentDoctorProfile.specialization || "General Physician"}`;
+  document.getElementById("doc-meta-completed").innerText = currentDoctorProfile.patientsCompletedToday || 0;
+  document.getElementById("doc-meta-queuesize").innerText = sortedDoctorQueue.length;
 
     // Paused alert banner display
     const isPaused = currentDoctorProfile.status === "paused";

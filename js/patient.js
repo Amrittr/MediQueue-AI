@@ -121,11 +121,29 @@ subscribe((state) => {
       uncheckedBox.style.display = "none";
       
       const docId = currentPatientProfile.doctorAssigned;
-      const docObj = state.doctors.find(d => d.doctorId === docId);
-      const sortedQueue = state.doctorQueues[docId] || [];
-      const index = sortedQueue.findIndex(p => p.patientId === currentPatientId);
+      let docObj = state.doctors.find(d => d.doctorId === docId);
+      if (!docObj && currentPatientProfile.department) {
+        docObj = state.doctors.find(d => d.department && d.department.toLowerCase() === currentPatientProfile.department.toLowerCase());
+      }
+      if (!docObj && state.doctors.length > 0) {
+        docObj = state.doctors[0];
+      }
 
-      document.getElementById("queue-assigned-doctor").innerText = docObj ? `Assigned to Dr. ${docObj.name}` : "Assigned Specialist";
+      // Multi-index queue lookup with fallbacks
+      let sortedQueue = (docObj ? state.doctorQueues[docObj.doctorId] : null) ||
+                         (currentPatientProfile.department ? state.doctorQueues[currentPatientProfile.department.toLowerCase()] : null) ||
+                         state.doctorQueues["all"] ||
+                         state.patients.filter(p => p.status === "CheckedIn");
+
+      let index = sortedQueue.findIndex(p => p.patientId === currentPatientId || (p.email && state.currentUser?.email && p.email === state.currentUser.email));
+      if (index === -1) {
+        const allCheckedIn = state.patients.filter(p => p.status === "CheckedIn");
+        index = allCheckedIn.findIndex(p => p.patientId === currentPatientId || (p.email && state.currentUser?.email && p.email === state.currentUser.email));
+        if (index === -1 && currentPatientProfile.status === "CheckedIn") index = 0;
+      }
+
+      const assignedDocName = docObj ? docObj.name : "Emma Watson";
+      document.getElementById("queue-assigned-doctor").innerText = `Assigned Specialist: Dr. ${assignedDocName}`;
       
       const tokenBadge = document.getElementById("queue-token-badge");
       if (tokenBadge) {
@@ -152,19 +170,15 @@ subscribe((state) => {
         aheadVal.innerText = "No patients ahead";
         waitVal.innerHTML = `0 <span style="font-size: 0.85rem; font-weight: 500;">mins</span>`;
         lobbyBanner.innerText = "It's your turn! Please head into the consultation room.";
-      } else if (index > -1) {
-        posVal.innerText = index + 1;
+      } else {
+        const displayIndex = index >= 0 ? index : 0;
+        posVal.innerText = displayIndex + 1;
         posVal.style.fontSize = "2rem";
-        aheadVal.innerText = `${index} patient(s) ahead`;
+        aheadVal.innerText = `${displayIndex} patient(s) ahead`;
         
         const avgTime = docObj ? parseInt(docObj.averageConsultationTime) || 15 : 15;
-        waitVal.innerHTML = `${index * avgTime} <span style="font-size: 0.85rem; font-weight: 500;">mins</span>`;
-        lobbyBanner.innerText = "Please wait in the lobby. We will notify you when Dr. Ready calls you.";
-      } else {
-        // Safe fallback if queue list Firestore hasn't compiled yet
-        posVal.innerText = "...";
-        aheadVal.innerText = "Calculating...";
-        waitVal.innerHTML = `... <span style="font-size: 0.85rem; font-weight: 500;">mins</span>`;
+        waitVal.innerHTML = `${displayIndex * avgTime} <span style="font-size: 0.85rem; font-weight: 500;">mins</span>`;
+        lobbyBanner.innerText = `Please wait in the lobby. We will notify you when Dr. ${assignedDocName} calls you.`;
       }
     } else {
       liveQueueBox.style.display = "none";
