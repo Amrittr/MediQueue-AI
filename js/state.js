@@ -328,7 +328,49 @@ function startSync() {
     notify();
   });
 
-  unsubscribes.push(unsubPatients, unsubDoctors, unsubDepts, unsubLogs);
+  const unsubAppointments = onSnapshot(collection(db, "appointments"), (snapshot) => {
+    snapshot.docs.forEach(docObj => {
+      const appt = docObj.data();
+      if (appt && appt.patientId) {
+        let p = state.patients.find(pat => pat.patientId === appt.patientId || (pat.email && appt.email && pat.email === appt.email));
+        const timeStr = appt.date && appt.time ? `${appt.date} ${appt.time}` : "";
+        if (p) {
+          p.appointmentTime = timeStr || p.appointmentTime;
+          p.department = appt.department || p.department;
+          p.doctorAssigned = appt.doctorId || p.doctorAssigned;
+          p.tokenNumber = appt.tokenNumber || p.tokenNumber || "MQ-" + Math.floor(100 + Math.random() * 900);
+          p.symptoms = appt.notes || p.symptoms || "";
+          if (p.status === "Registered" || !p.status) {
+            p.status = "CheckedIn";
+            p.checkInTime = appt.createdAt || new Date().toISOString();
+          }
+        } else {
+          state.patients.push({
+            patientId: appt.patientId,
+            name: appt.patientName || appt.name || "Patient",
+            email: appt.email || "",
+            gender: "Other",
+            age: "30",
+            department: appt.department || "General Medicine",
+            doctorAssigned: appt.doctorId || "",
+            appointmentTime: timeStr,
+            tokenNumber: appt.tokenNumber || "MQ-" + Math.floor(100 + Math.random() * 900),
+            status: "CheckedIn",
+            checkInTime: appt.createdAt || new Date().toISOString(),
+            priorityScore: 50,
+            emergencyLevel: "Low",
+            symptoms: appt.notes || "",
+            createdAt: appt.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+    processDSAModels();
+    notify();
+  });
+
+  unsubscribes.push(unsubPatients, unsubDoctors, unsubDepts, unsubLogs, unsubAppointments);
 }
 
 // Stop real-time Firestore synchronization

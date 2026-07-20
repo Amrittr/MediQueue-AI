@@ -192,13 +192,15 @@ function renderQueueControlTable() {
             <span>${p.name}</span>
             ${p.tokenNumber ? `<span class="badge badge-info" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; font-weight: 700;">${p.tokenNumber}</span>` : ''}
           </div>
-          <div style="font-size: 0.75rem; color: var(--color-text-light);">ID: ${p.patientId} • Age: ${p.age} • Gen: ${p.gender}</div>
+          <div style="font-size: 0.75rem; color: var(--color-text-light);">ID: ${p.patientId} • Age: ${p.age || '30'} • Gen: ${p.gender || 'Patient'}</div>
+          ${p.appointmentTime ? `<div style="font-size: 0.725rem; color: var(--color-primary); font-weight: 600; margin-top: 0.15rem;">📅 Slot: ${p.appointmentTime}</div>` : ''}
+          ${p.symptoms ? `<div style="font-size: 0.725rem; color: var(--color-text-medium); font-style: italic; margin-top: 0.1rem;">Reason: ${p.symptoms}</div>` : ''}
         </td>
         <td style="font-weight: bold; font-variant-numeric: tabular-nums;">
-          ${p.priorityScore || 0}
+          ${p.priorityScore || 50}
         </td>
         <td>
-          <span class="badge badge-${getEmergencyBadgeClass(p.emergencyLevel)}">${p.emergencyLevel}</span>
+          <span class="badge badge-${getEmergencyBadgeClass(p.emergencyLevel)}">${p.emergencyLevel || 'Low'}</span>
         </td>
         <td style="text-align: right;">
           <button class="btn btn-primary call-patient-btn" data-id="${p.patientId}" ${index > 0 ? 'style="opacity:0.6; padding:0.4rem 0.85rem;"' : 'style="padding:0.4rem 0.85rem;"'}>
@@ -232,11 +234,16 @@ function renderMiniQueueSidebar() {
     return `
       <div style="background-color: var(--color-bg-app); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
         <div>
-          <div style="font-weight: 600; font-size: 0.8rem; color: var(--color-text-dark);">${idx + 1}. ${p.name}</div>
-          <div style="font-size: 0.7rem; color: var(--color-text-light);">ID: ${p.patientId} • Score: ${p.priorityScore || 0}</div>
+          <div style="font-weight: 600; font-size: 0.8rem; color: var(--color-text-dark); display: flex; align-items: center; gap: 0.35rem;">
+            <span>${idx + 1}. ${p.name}</span>
+            ${p.tokenNumber ? `<span style="font-size: 0.65rem; color: var(--color-primary); font-weight: 700;">[${p.tokenNumber}]</span>` : ''}
+          </div>
+          <div style="font-size: 0.7rem; color: var(--color-text-light);">
+            ${p.appointmentTime ? `${p.appointmentTime.split(' ')[0]} • ` : ''}Score: ${p.priorityScore || 50}
+          </div>
         </div>
         <span class="badge badge-${getEmergencyBadgeClass(p.emergencyLevel)}" style="font-size: 0.65rem; padding: 0.15rem 0.45rem;">
-          ${p.emergencyLevel}
+          ${p.emergencyLevel || 'Low'}
         </span>
       </div>
     `;
