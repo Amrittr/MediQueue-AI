@@ -971,7 +971,6 @@ export async function bookAppointment(patientId, appointmentData) {
     }
   }
 
-  // Auto-assign a doctor matching the selected department if doctorId is empty or unassigned
   let assignedDoctorId = appointmentData.doctorId || "";
   let assignedDoctorName = appointmentData.doctorName || "Unassigned";
 
@@ -1006,7 +1005,7 @@ export async function bookAppointment(patientId, appointmentData) {
     status: "CheckedIn",
     tokenNumber,
     checkInTime: nowStr,
-    priorityScore: 0,
+    priorityScore: 50,
     emergencyLevel: appointmentData.emergencyLevel || "Low",
     waitingMinutes: 0,
     createdAt: nowStr,
@@ -1020,33 +1019,46 @@ export async function bookAppointment(patientId, appointmentData) {
   } else {
     state.patients.push(patientDataToSave);
   }
+
+  // Update doctor queues immediately across all active doctors
   processDSAModels();
   notify();
 
-  // 2. Perform Firestore network operations asynchronously with a 2-second timeout to avoid blocking UI
-  try {
-    const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
-    await withTimeout(setDoc(doc(db, "appointments", appointmentId), {
-      appointmentId,
-      patientId,
-      doctorId: assignedDoctorId,
-      doctorName: assignedDoctorName,
-      department: appointmentData.department,
-      date: appointmentData.date,
-      time: appointmentData.time,
-      status: "scheduled",
-      notes: appointmentData.notes || "",
-      tokenNumber,
-      createdAt: nowStr
-    }), 2000);
+  // 2. Perform Firestore network operations asynchronously in background
+  (async () => {
+    try {
+      const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
+      withTimeout(setDoc(doc(db, "appointments", appointmentId), {
+        appointmentId,
+        patientId,
+        doctorId: assignedDoctorId,
+        doctorName: assignedDoctorName,
+        department: appointmentData.department,
+        date: appointmentData.date,
+        time: appointmentData.time,
+        status: "scheduled",
+        notes: appointmentData.notes || "",
+        tokenNumber,
+        createdAt: nowStr
+      }), 2000).catch(() => {});
 
-    const patientRef = doc(db, "patients", patientId);
-    await withTimeout(setDoc(patientRef, patientDataToSave, { merge: true }), 2000);
+      const patientRef = doc(db, "patients", patientId);
+      withTimeout(setDoc(patientRef, patientDataToSave, { merge: true }), 2000).catch(() => {});
 
-    logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber})`);
-  } catch (e) {
-    console.warn("Firestore write network delay/offline fallback, kept local state updated:", e);
-  }
+      withTimeout(setDoc(doc(db, "queue", patientId), {
+        patientId,
+        doctorId: assignedDoctorId,
+        department: appointmentData.department,
+        status: "waiting",
+        priorityScore: 50,
+        checkInTime: nowStr
+      }), 2000).catch(() => {});
+
+      logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber})`);
+    } catch (e) {
+      console.warn("Firestore background write warning:", e);
+    }
+  })();
 
   return tokenNumber;
 }
