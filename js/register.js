@@ -10,7 +10,7 @@ const submitBtn = document.getElementById("submit-btn");
 // Toggle department dropdown based on role selection
 roleSelect.addEventListener("change", () => {
   const role = roleSelect.value;
-  if (role === "doctor" || role === "receptionist") {
+  if (role === "doctor") {
     deptGroup.style.display = "block";
     deptSelect.required = true;
   } else {
@@ -57,7 +57,7 @@ form.addEventListener("submit", async (e) => {
     return;
   }
 
-  if ((role === "doctor" || role === "receptionist") && !department) {
+  if (role === "doctor" && !department) {
     showToast("Please assign a department.", "error");
     return;
   }

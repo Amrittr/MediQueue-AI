@@ -892,19 +892,23 @@ export async function bookAppointment(patientId, appointmentData) {
     });
 
     const patientRef = doc(db, "patients", patientId);
+    const nowStr = new Date().toISOString();
     await updateDoc(patientRef, {
       appointmentTime: `${appointmentData.date} ${appointmentData.time}`,
       doctorAssigned: appointmentData.doctorId,
       department: appointmentData.department,
-      updatedAt: new Date().toISOString()
+      status: "CheckedIn",
+      checkInTime: nowStr,
+      updatedAt: nowStr
     });
 
-    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName}`);
+    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In)`);
   } catch (e) {
     console.error("Book appointment database write failed, falling back to local simulation:", e);
     
     // Offline local simulation fallback for demo resilience
     let patientIndex = state.patients.findIndex(p => p.patientId === patientId);
+    const nowStr = new Date().toISOString();
     const updatedPatient = {
       patientId,
       name: state.userData?.name || "Test Patient",
@@ -917,13 +921,13 @@ export async function bookAppointment(patientId, appointmentData) {
       appointmentTime: `${appointmentData.date} ${appointmentData.time}`,
       doctorAssigned: appointmentData.doctorId,
       department: appointmentData.department,
-      checkInTime: "",
+      checkInTime: nowStr,
       priorityScore: 0,
       emergencyLevel: "Low",
-      status: "Registered",
+      status: "CheckedIn",
       waitingMinutes: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: nowStr,
+      updatedAt: nowStr
     };
     
     if (patientIndex > -1) {

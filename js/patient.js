@@ -255,11 +255,8 @@ bookingForm.addEventListener("submit", async (e) => {
       notes
     });
 
-    showToast("Clinic slot booked successfully!", "success");
-    bookingForm.reset();
-    bookDocSelect.innerHTML = `<option value="">Select Doctor</option>`;
-    bookDocSelect.disabled = true;
-    switchTab("portal");
+    alert("Slot booked!");
+    window.location.reload();
   } catch (err) {
     console.error(err);
     showToast("Booking failed. Please try again.", "error");

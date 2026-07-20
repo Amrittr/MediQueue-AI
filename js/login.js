@@ -70,3 +70,23 @@ form.addEventListener("submit", async (e) => {
     submitBtn.innerText = "Sign In";
   }
 });
+
+// Demo login event listeners
+const demoDoctorBtn = document.getElementById("demo-doctor-btn");
+const demoPatientBtn = document.getElementById("demo-patient-btn");
+
+if (demoDoctorBtn) {
+  demoDoctorBtn.addEventListener("click", () => {
+    document.getElementById("email").value = "doctor@medi.com";
+    document.getElementById("password").value = "doctor123";
+    form.dispatchEvent(new Event("submit"));
+  });
+}
+
+if (demoPatientBtn) {
+  demoPatientBtn.addEventListener("click", () => {
+    document.getElementById("email").value = "patient@medi.com";
+    document.getElementById("password").value = "patient123";
+    form.dispatchEvent(new Event("submit"));
+  });
+}
