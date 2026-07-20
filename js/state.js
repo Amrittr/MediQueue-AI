@@ -967,6 +967,7 @@ export async function bookAppointment(patientId, appointmentData) {
     }
     processDSAModels();
     notify();
+    throw e;
   }
 }
 

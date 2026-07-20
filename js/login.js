@@ -42,51 +42,14 @@ form.addEventListener("submit", async (e) => {
   } catch (err) {
     console.error(err);
 
-    // Check for demo bypass credentials
-    let demoRole = null;
-    let name = "";
-    if (email === "admin@medi.com") { demoRole = "admin"; name = "Demo Admin"; }
-    else if (email === "receptionist@medi.com") { demoRole = "receptionist"; name = "Demo Receptionist"; }
-    else if (email === "doctor@medi.com") { demoRole = "doctor"; name = "Demo Doctor"; }
-    else if (email === "patient@medi.com") { demoRole = "patient"; name = "Demo Patient"; }
-
-    if (demoRole) {
-      showToast("Demo sign-in bypass activated!", "success");
-      // Import state dynamically to invoke bypass login
-      import('./state.js').then(module => {
-        module.simulateLocalLogin(email, demoRole, name);
-      });
-      return;
-    }
-
     let errorMsg = "Invalid email or password.";
     if (err.code === "auth/user-not-found") errorMsg = "No account found with this email.";
     else if (err.code === "auth/wrong-password") errorMsg = "Incorrect password.";
     else if (err.code === "auth/invalid-credential") errorMsg = "Incorrect email or password.";
-    else if (err.message && err.message.toLowerCase().includes("network")) errorMsg = "Network error. Please try demo credentials (e.g., admin@medi.com).";
+    else if (err.message && err.message.toLowerCase().includes("network")) errorMsg = "Network error. Please check your internet connection.";
     
     showToast(errorMsg, "error");
     submitBtn.disabled = false;
     submitBtn.innerText = "Sign In";
   }
 });
-
-// Demo login event listeners
-const demoDoctorBtn = document.getElementById("demo-doctor-btn");
-const demoPatientBtn = document.getElementById("demo-patient-btn");
-
-if (demoDoctorBtn) {
-  demoDoctorBtn.addEventListener("click", () => {
-    document.getElementById("email").value = "doctor@medi.com";
-    document.getElementById("password").value = "doctor123";
-    form.dispatchEvent(new Event("submit"));
-  });
-}
-
-if (demoPatientBtn) {
-  demoPatientBtn.addEventListener("click", () => {
-    document.getElementById("email").value = "patient@medi.com";
-    document.getElementById("password").value = "patient123";
-    form.dispatchEvent(new Event("submit"));
-  });
-}
