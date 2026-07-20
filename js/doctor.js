@@ -133,7 +133,6 @@ subscribe((state) => {
       toggleQueueBtn.style.border = "1px solid #fde68a";
       toggleQueueBtn.innerHTML = `<span class="material-icons-outlined">pause</span> <span>Pause Consultations</span>`;
     }
-  }
 
   // 2. Render Active Consultation Room Card or Empty Room
   if (activeConsultingPatient) {
