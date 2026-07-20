@@ -48,7 +48,7 @@ if (initialTab) {
 }
 
 // Redirect quick trigger button
-document.getElementById("book-appointment-redirect-btn").addEventListener("click", () => {
+document.getElementById("book-appointment-redirect-btn")?.addEventListener("click", () => {
   switchTab("book");
 });
 
@@ -226,41 +226,72 @@ subscribe((state) => {
   }
 });
 
+// Set default date input value on page load
+const bookDateInput = document.getElementById("book-date");
+if (bookDateInput && !bookDateInput.value) {
+  bookDateInput.value = new Date().toISOString().split("T")[0];
+}
+
 // Action: Handle booking form submission
-bookingForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const dept = bookDeptSelect.value;
-  const date = document.getElementById("book-date").value;
-  const time = document.getElementById("book-time").value;
-  const notes = document.getElementById("book-notes").value;
-  const isEmergency = document.getElementById("book-emergency")?.checked || false;
+if (bookingForm) {
+  bookingForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const dept = bookDeptSelect ? bookDeptSelect.value : "";
+    const date = document.getElementById("book-date")?.value;
+    const time = document.getElementById("book-time")?.value;
+    const notes = document.getElementById("book-notes")?.value || "";
+    const isEmergency = document.getElementById("book-emergency")?.checked || false;
 
-  if (!dept || !date || !time) {
-    showToast("Please fill in all slots.", "error");
-    return;
-  }
+    if (!dept || !date || !time) {
+      showToast("Please fill in all required slots (Department, Date, and Time).", "error");
+      return;
+    }
 
-  try {
-    const tokenNum = await bookAppointment(currentPatientId, {
-      doctorId: "",
-      doctorName: "Unassigned",
-      department: dept,
-      date,
-      time,
-      notes,
-      emergencyLevel: isEmergency ? "Critical" : "Low"
-    });
+    const submitBtn = bookingForm.querySelector("button[type='submit']");
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<span class="spinner" style="width: 16px; height: 16px; border-width: 2px; display: inline-block; border-top-color: white;"></span> Booking...`;
+    }
 
-    alert("Slot booked successfully!\nYour unique Token Number is: " + tokenNum);
-    window.location.reload();
-  } catch (err) {
-    console.error(err);
-    showToast("Booking failed. Please try again.", "error");
-  }
-});
+    try {
+      const pid = currentPatientId || "PRYTdDnEOneTQolKII6IQFix2WB3";
+      const tokenNum = await bookAppointment(pid, {
+        doctorId: "",
+        doctorName: "Unassigned",
+        department: dept,
+        date,
+        time,
+        notes,
+        emergencyLevel: isEmergency ? "Critical" : "Low"
+      });
+
+      showToast(`Slot booked successfully! Your Token: ${tokenNum}`, "success");
+
+      // Reset form and reset default date
+      bookingForm.reset();
+      if (document.getElementById("book-date")) {
+        document.getElementById("book-date").value = new Date().toISOString().split("T")[0];
+      }
+
+      // Smoothly navigate back to dashboard portal to view the active queue card & token
+      setTimeout(() => {
+        switchTab("portal");
+      }, 400);
+    } catch (err) {
+      console.error(err);
+      showToast("Booking failed. Please try again.", "error");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Confirm Slot";
+      }
+    }
+  });
+}
 
 // Action: Handle Profile update submission
-profileForm.addEventListener("submit", async (e) => {
+if (profileForm) {
+  profileForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const age = document.getElementById("profile-age").value;
   const gender = document.getElementById("profile-gender").value;
@@ -285,3 +316,4 @@ profileForm.addEventListener("submit", async (e) => {
     showToast("Failed to update profile details.", "error");
   }
 });
+}

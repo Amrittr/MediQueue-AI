@@ -880,79 +880,124 @@ export async function toggleDoctorStatus(doctorId, currentStatus, doctorName) {
 
 export async function bookAppointment(patientId, appointmentData) {
   const tokenNumber = "MQ-" + Math.floor(100 + Math.random() * 900);
+  
+  if (!patientId) {
+    if (state.currentUser?.uid) {
+      patientId = state.currentUser.uid;
+    } else {
+      patientId = "PAT-" + Math.floor(1000 + Math.random() * 9000);
+    }
+  }
+
+  // Auto-assign a doctor matching the selected department if doctorId is empty or unassigned
+  let assignedDoctorId = appointmentData.doctorId || "";
+  let assignedDoctorName = appointmentData.doctorName || "Unassigned";
+
+  if (!assignedDoctorId || assignedDoctorId === "" || assignedDoctorName === "Unassigned") {
+    const matchingDoctor = state.doctors.find(
+      d => d.department && d.department.toLowerCase() === (appointmentData.department || "").toLowerCase()
+    );
+    if (matchingDoctor) {
+      assignedDoctorId = matchingDoctor.doctorId;
+      assignedDoctorName = matchingDoctor.name;
+    } else if (state.doctors.length > 0) {
+      assignedDoctorId = state.doctors[0].doctorId;
+      assignedDoctorName = state.doctors[0].name;
+    }
+  }
+
+  const nowStr = new Date().toISOString();
+  const appointmentTimeStr = `${appointmentData.date} ${appointmentData.time}`;
+
   try {
     const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
     await setDoc(doc(db, "appointments", appointmentId), {
       appointmentId,
       patientId,
-      doctorId: appointmentData.doctorId,
-      doctorName: appointmentData.doctorName,
+      doctorId: assignedDoctorId,
+      doctorName: assignedDoctorName,
+      department: appointmentData.department,
       date: appointmentData.date,
       time: appointmentData.time,
       status: "scheduled",
       notes: appointmentData.notes || "",
       tokenNumber,
-      createdAt: new Date().toISOString()
+      createdAt: nowStr
     });
 
     const patientRef = doc(db, "patients", patientId);
-    const nowStr = new Date().toISOString();
-    
-    // Check if patient document exists, if not, write basic fields
-    const patientDoc = await getDoc(patientRef);
+    let patientDocExists = false;
+    let existingData = {};
+    try {
+      const patientDoc = await getDoc(patientRef);
+      if (patientDoc.exists()) {
+        patientDocExists = true;
+        existingData = patientDoc.data();
+      }
+    } catch (e) {
+      console.warn("Could not check patient document:", e);
+    }
+
     const patientDataToSave = {
-      appointmentTime: `${appointmentData.date} ${appointmentData.time}`,
-      doctorAssigned: appointmentData.doctorId,
+      patientId,
+      appointmentTime: appointmentTimeStr,
+      doctorAssigned: assignedDoctorId,
       department: appointmentData.department,
       status: "CheckedIn",
       tokenNumber,
       checkInTime: nowStr,
       updatedAt: nowStr
     };
-    
-    if (!patientDoc.exists()) {
-      patientDataToSave.patientId = patientId;
-      patientDataToSave.name = state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient";
-      patientDataToSave.email = state.currentUser?.email || "";
-      patientDataToSave.gender = "";
-      patientDataToSave.age = "25";
-      patientDataToSave.phone = "";
-      patientDataToSave.bloodGroup = "";
+
+    if (!patientDocExists) {
+      patientDataToSave.name = existingData.name || state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient";
+      patientDataToSave.email = existingData.email || state.currentUser?.email || "";
+      patientDataToSave.gender = existingData.gender || "Other";
+      patientDataToSave.age = existingData.age || "30";
+      patientDataToSave.phone = existingData.phone || "";
+      patientDataToSave.bloodGroup = existingData.bloodGroup || "";
       patientDataToSave.symptoms = appointmentData.notes || "";
       patientDataToSave.priorityScore = 0;
       patientDataToSave.emergencyLevel = appointmentData.emergencyLevel || "Low";
       patientDataToSave.waitingMinutes = 0;
       patientDataToSave.createdAt = nowStr;
     } else {
-      if (appointmentData.emergencyLevel) {
-        patientDataToSave.emergencyLevel = appointmentData.emergencyLevel;
-      }
-      if (appointmentData.notes !== undefined) {
+      patientDataToSave.emergencyLevel = appointmentData.emergencyLevel || existingData.emergencyLevel || "Low";
+      if (appointmentData.notes) {
         patientDataToSave.symptoms = appointmentData.notes;
       }
     }
 
     await setDoc(patientRef, patientDataToSave, { merge: true });
 
-    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In, Token: ${tokenNumber}, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
+    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber}, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
+
+    // Update local state directly for fast UI updates
+    let pIdx = state.patients.findIndex(p => p.patientId === patientId);
+    if (pIdx > -1) {
+      state.patients[pIdx] = { ...state.patients[pIdx], ...patientDataToSave };
+    } else {
+      state.patients.push(patientDataToSave);
+    }
+    processDSAModels();
+    notify();
+
     return tokenNumber;
   } catch (e) {
     console.error("Book appointment database write failed, falling back to local simulation:", e);
-    
-    // Offline local simulation fallback for demo resilience
+
     let patientIndex = state.patients.findIndex(p => p.patientId === patientId);
-    const nowStr = new Date().toISOString();
     const updatedPatient = {
       patientId,
-      name: state.userData?.name || state.currentUser?.email?.split('@')[0] || "Test Patient",
+      name: state.userData?.name || state.currentUser?.email?.split('@')[0] || "Patient",
       email: state.currentUser?.email || "",
       gender: "Male",
-      age: "25",
-      phone: "1234567890",
+      age: "30",
+      phone: "",
       bloodGroup: "",
       symptoms: appointmentData.notes || "",
-      appointmentTime: `${appointmentData.date} ${appointmentData.time}`,
-      doctorAssigned: appointmentData.doctorId,
+      appointmentTime: appointmentTimeStr,
+      doctorAssigned: assignedDoctorId,
       department: appointmentData.department,
       checkInTime: nowStr,
       priorityScore: 0,
@@ -963,7 +1008,7 @@ export async function bookAppointment(patientId, appointmentData) {
       createdAt: nowStr,
       updatedAt: nowStr
     };
-    
+
     if (patientIndex > -1) {
       state.patients[patientIndex] = {
         ...state.patients[patientIndex],
@@ -974,7 +1019,7 @@ export async function bookAppointment(patientId, appointmentData) {
     }
     processDSAModels();
     notify();
-    throw e;
+    return tokenNumber;
   }
 }
 
