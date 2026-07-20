@@ -137,7 +137,7 @@ function processDSAModels() {
   state.doctors.forEach(doctor => {
     const docPQ = new PriorityQueue();
     const docPatients = activeCheckedInPatients.filter(
-      p => p.doctorAssigned === doctor.doctorId && p.status === "CheckedIn"
+      p => (p.doctorAssigned === doctor.doctorId || p.department === doctor.department || !doctor.department) && p.status === "CheckedIn"
     );
 
     docPatients.forEach(p => {
@@ -742,6 +742,7 @@ export async function startConsultation(patientId, doctorId, doctorName) {
     const patientRef = doc(db, "patients", patientId);
     await updateDoc(patientRef, {
       status: "InConsultation",
+      doctorAssigned: doctorId,
       updatedAt: new Date().toISOString()
     });
 
@@ -756,6 +757,7 @@ export async function startConsultation(patientId, doctorId, doctorName) {
     const pData = state.patients.find(p => p.patientId === patientId);
     if (pData) {
       pData.status = "InConsultation";
+      pData.doctorAssigned = doctorId;
       pData.updatedAt = new Date().toISOString();
       processDSAModels();
       notify();
@@ -877,6 +879,7 @@ export async function toggleDoctorStatus(doctorId, currentStatus, doctorName) {
 }
 
 export async function bookAppointment(patientId, appointmentData) {
+  const tokenNumber = "MQ-" + Math.floor(100 + Math.random() * 900);
   try {
     const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
     await setDoc(doc(db, "appointments", appointmentId), {
@@ -888,6 +891,7 @@ export async function bookAppointment(patientId, appointmentData) {
       time: appointmentData.time,
       status: "scheduled",
       notes: appointmentData.notes || "",
+      tokenNumber,
       createdAt: new Date().toISOString()
     });
 
@@ -901,6 +905,7 @@ export async function bookAppointment(patientId, appointmentData) {
       doctorAssigned: appointmentData.doctorId,
       department: appointmentData.department,
       status: "CheckedIn",
+      tokenNumber,
       checkInTime: nowStr,
       updatedAt: nowStr
     };
@@ -929,7 +934,8 @@ export async function bookAppointment(patientId, appointmentData) {
 
     await setDoc(patientRef, patientDataToSave, { merge: true });
 
-    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
+    await logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${appointmentData.doctorName} (Auto-Checked In, Token: ${tokenNumber}, Emergency: ${appointmentData.emergencyLevel || 'Low'})`);
+    return tokenNumber;
   } catch (e) {
     console.error("Book appointment database write failed, falling back to local simulation:", e);
     
@@ -952,6 +958,7 @@ export async function bookAppointment(patientId, appointmentData) {
       priorityScore: 0,
       emergencyLevel: appointmentData.emergencyLevel || "Low",
       status: "CheckedIn",
+      tokenNumber,
       waitingMinutes: 0,
       createdAt: nowStr,
       updatedAt: nowStr

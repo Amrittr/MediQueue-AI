@@ -152,6 +152,16 @@ subscribe((state) => {
 
       document.getElementById("queue-assigned-doctor").innerText = docObj ? `Assigned to Dr. ${docObj.name}` : "Assigned Specialist";
       
+      const tokenBadge = document.getElementById("queue-token-badge");
+      if (tokenBadge) {
+        if (currentPatientProfile.tokenNumber) {
+          tokenBadge.innerText = `TKN: ${currentPatientProfile.tokenNumber}`;
+          tokenBadge.style.display = "inline-flex";
+        } else {
+          tokenBadge.style.display = "none";
+        }
+      }
+      
       // Pause status badge alert
       const isPaused = docObj?.status === "paused";
       document.getElementById("queue-doctor-paused-badge").style.display = isPaused ? "inline-flex" : "none";
@@ -191,6 +201,16 @@ subscribe((state) => {
         upcomingSlotCard.style.display = "block";
         document.getElementById("upcoming-slot-time").innerText = currentPatientProfile.appointmentTime;
         
+        const upcomingSlotToken = document.getElementById("upcoming-slot-token");
+        if (upcomingSlotToken) {
+          if (currentPatientProfile.tokenNumber) {
+            upcomingSlotToken.innerText = `TKN: ${currentPatientProfile.tokenNumber}`;
+            upcomingSlotToken.style.display = "inline";
+          } else {
+            upcomingSlotToken.style.display = "none";
+          }
+        }
+
         const slotDocObj = state.doctors.find(d => d.doctorId === currentPatientProfile.doctorAssigned);
         document.getElementById("upcoming-slot-doctor").innerText = `With Dr. ${slotDocObj ? slotDocObj.name : 'Specialist Assigned'}`;
       } else {
@@ -248,7 +268,7 @@ bookingForm.addEventListener("submit", async (e) => {
 
   try {
     const docObj = cachedDoctors.find(d => d.doctorId === doctorId);
-    await bookAppointment(currentPatientId, {
+    const tokenNum = await bookAppointment(currentPatientId, {
       doctorId,
       doctorName: docObj ? docObj.name : "Assigned Specialist",
       department: dept,
@@ -258,7 +278,7 @@ bookingForm.addEventListener("submit", async (e) => {
       emergencyLevel: isEmergency ? "Critical" : "Low"
     });
 
-    alert("Slot booked!");
+    alert("Slot booked successfully!\nYour unique Token Number is: " + tokenNum);
     window.location.reload();
   } catch (err) {
     console.error(err);

@@ -107,7 +107,7 @@ subscribe((state) => {
     emptyConsultState.style.display = "none";
     activeConsultCard.style.display = "block";
 
-    document.getElementById("consult-pat-name").innerText = activeConsultingPatient.name;
+    document.getElementById("consult-pat-name").innerText = `${activeConsultingPatient.name} ${activeConsultingPatient.tokenNumber ? `(${activeConsultingPatient.tokenNumber})` : ''}`;
     document.getElementById("consult-pat-details").innerText = `ID: ${activeConsultingPatient.patientId} • Age: ${activeConsultingPatient.age} • Gender: ${activeConsultingPatient.gender}`;
     
     // Set priority badge
@@ -156,7 +156,10 @@ function renderQueueControlTable() {
     return `
       <tr>
         <td>
-          <div style="font-weight: 600; color: var(--color-text-dark);">${p.name}</div>
+          <div style="font-weight: 600; color: var(--color-text-dark); display: flex; align-items: center; gap: 0.5rem;">
+            <span>${p.name}</span>
+            ${p.tokenNumber ? `<span class="badge badge-info" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; font-weight: 700;">${p.tokenNumber}</span>` : ''}
+          </div>
           <div style="font-size: 0.75rem; color: var(--color-text-light);">ID: ${p.patientId} • Age: ${p.age} • Gen: ${p.gender}</div>
         </td>
         <td style="font-weight: bold; font-variant-numeric: tabular-nums;">
