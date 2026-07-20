@@ -10,6 +10,7 @@ import {
   onSnapshot,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   addDoc,
   updateDoc,
@@ -370,7 +371,53 @@ function startSync() {
     notify();
   });
 
-  unsubscribes.push(unsubPatients, unsubDoctors, unsubDepts, unsubLogs, unsubAppointments);
+  // Cross-tab broadcast listener for instant local browser sync
+  const storageListener = () => {
+    try {
+      const stored = localStorage.getItem("mediqueue_patients");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach(item => {
+            let existing = state.patients.find(p => p.patientId === item.patientId);
+            if (existing) {
+              Object.assign(existing, item);
+            } else {
+              state.patients.push(item);
+            }
+          });
+          processDSAModels();
+          notify();
+        }
+      }
+    } catch (e) {}
+  };
+  window.addEventListener("storage", storageListener);
+
+  // 3-Second Firestore polling fallback
+  const pollTimer = setInterval(async () => {
+    try {
+      const pSnap = await getDocs(collection(db, "patients"));
+      const pDocs = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (pDocs.length > 0) {
+        pDocs.forEach(item => {
+          let existing = state.patients.find(p => p.patientId === item.patientId || p.patientId === item.id);
+          if (existing) {
+            Object.assign(existing, item);
+          } else {
+            state.patients.push(item);
+          }
+        });
+        processDSAModels();
+        notify();
+      }
+    } catch (e) {}
+  }, 3000);
+
+  unsubscribes.push(unsubPatients, unsubDoctors, unsubDepts, unsubLogs, unsubAppointments, () => {
+    window.removeEventListener("storage", storageListener);
+    clearInterval(pollTimer);
+  });
 }
 
 // Stop real-time Firestore synchronization
@@ -1061,6 +1108,11 @@ export async function bookAppointment(patientId, appointmentData) {
   } else {
     state.patients.push(patientDataToSave);
   }
+
+  try {
+    localStorage.setItem("mediqueue_patients", JSON.stringify(state.patients));
+    window.dispatchEvent(new Event("storage"));
+  } catch (e) {}
 
   // Update doctor queues immediately across all active doctors
   processDSAModels();
