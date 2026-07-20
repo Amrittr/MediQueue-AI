@@ -1,4 +1,5 @@
-import { subscribe, toggleDoctorStatus, startConsultation, completeConsultation, skipPatient } from './state.js';
+import { subscribe, toggleDoctorStatus, startConsultation, completeConsultation, skipPatient, calculatePriorityScore } from './state.js';
+import PriorityQueue from './algorithms/PriorityQueue.js';
 import { initLayout } from './components.js';
 import { showToast } from './toast.js';
 
@@ -97,18 +98,24 @@ subscribe((state) => {
   }
 
   const targetDocId = currentDoctorProfile.doctorId;
-  sortedDoctorQueue = state.doctorQueues[targetDocId] ||
-                      (currentDoctorProfile.department ? state.doctorQueues[currentDoctorProfile.department.toLowerCase()] : null) ||
-                      state.doctorQueues["all"] ||
-                      state.patients.filter(p => p.status === "CheckedIn");
 
-  if (sortedDoctorQueue.length === 0) {
-    sortedDoctorQueue = state.patients.filter(p => p.status === "CheckedIn" || p.status === "Registered");
-  }
+  // Universal Doctor Access: Every doctor sees all waiting and booked patients across the hospital
+  const waitingPatients = state.patients.filter(
+    p => (p.status === "CheckedIn" || p.status === "Registered" || p.status === "Scheduled" || p.tokenNumber) &&
+         p.status !== "Completed" && p.status !== "InConsultation"
+  );
 
-  // Find if there is an active patient in consultation room
+  const docPQ = new PriorityQueue();
+  waitingPatients.forEach(p => {
+    const score = calculatePriorityScore(p);
+    docPQ.enqueue(p, score);
+  });
+  sortedDoctorQueue = docPQ.getSortedPatients();
+
+  // Find if there is an active patient in consultation room for this doctor or hospital
   activeConsultingPatient = state.patients.find(
-    p => (p.doctorAssigned === targetDocId || p.doctorAssigned === currentDoctorId) && p.status === "InConsultation"
+    p => p.status === "InConsultation" &&
+    (p.doctorAssigned === targetDocId || p.doctorAssigned === currentDoctorId || !p.doctorAssigned || p.doctorAssigned === "")
   );
 
   // 1. Populate Doctor Meta Details
