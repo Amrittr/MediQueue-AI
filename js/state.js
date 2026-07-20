@@ -536,270 +536,245 @@ export async function registerPatient(patientData) {
     updatedAt: new Date().toISOString()
   };
 
+  state.patients.push(newPatient);
+  processDSAModels();
+  notify();
+
   try {
-    await setDoc(doc(db, "patients", patientId), newPatient);
-    await logAction("Register Patient", patientData.registeredBy || "System", `Registered Patient ${patientData.name} (${patientId})`);
-    return patientId;
+    await withTimeout(setDoc(doc(db, "patients", patientId), newPatient), 2000);
+    logAction("Register Patient", patientData.registeredBy || "System", `Registered Patient ${patientData.name} (${patientId})`);
   } catch (e) {
-    console.error("Register Patient database write failed, falling back to local simulation:", e);
-    state.patients.push(newPatient);
-    processDSAModels();
-    notify();
-    return patientId;
+    console.warn("Register patient background sync warning:", e);
   }
+  return patientId;
 }
 
 export async function editPatient(patientId, updatedData) {
-  try {
-    const patientRef = doc(db, "patients", patientId);
-    await setDoc(patientRef, {
+  const patientIndex = state.patients.findIndex(p => p.patientId === patientId);
+  if (patientIndex > -1) {
+    state.patients[patientIndex] = {
+      ...state.patients[patientIndex],
       ...updatedData,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
-    await logAction("Edit Patient", updatedData.performedBy || "System", `Updated details for ${patientId}`);
+    };
+    processDSAModels();
+    notify();
+  }
+
+  try {
+    const patientRef = doc(db, "patients", patientId);
+    await withTimeout(setDoc(patientRef, {
+      ...updatedData,
+      updatedAt: new Date().toISOString()
+    }, { merge: true }), 2000);
+    logAction("Edit Patient", updatedData.performedBy || "System", `Updated details for ${patientId}`);
   } catch (e) {
-    console.error("Edit Patient database write failed, falling back to local simulation:", e);
-    const patientIndex = state.patients.findIndex(p => p.patientId === patientId);
-    if (patientIndex > -1) {
-      state.patients[patientIndex] = {
-        ...state.patients[patientIndex],
-        ...updatedData,
-        updatedAt: new Date().toISOString()
-      };
-      processDSAModels();
-      notify();
-    }
+    console.warn("Edit patient background sync warning:", e);
   }
 }
 
 export async function checkInPatient(patientId, receptionistName) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (!pData) throw new Error("Patient profile not found");
+
+  const checkInTime = new Date().toISOString();
+  const score = calculatePriorityScore({
+    ...pData,
+    checkInTime
+  });
+
+  pData.status = "CheckedIn";
+  pData.checkInTime = checkInTime;
+  pData.priorityScore = score;
+  pData.updatedAt = checkInTime;
+
+  if (pData.doctorAssigned) {
+    const doctor = state.doctors.find(d => d.doctorId === pData.doctorAssigned);
+    if (doctor) {
+      doctor.queueLength = (doctor.queueLength || 0) + 1;
+    }
+  }
+
+  processDSAModels();
+  notify();
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    const checkInTime = new Date().toISOString();
-    
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (!pData) throw new Error("Patient profile not found");
-
-    const score = calculatePriorityScore({
-      ...pData,
-      checkInTime
-    });
-
-    await updateDoc(patientRef, {
+    await withTimeout(updateDoc(patientRef, {
       status: "CheckedIn",
       checkInTime,
       priorityScore: score,
-      updatedAt: new Date().toISOString()
-    });
+      updatedAt: checkInTime
+    }), 2000);
 
-    await setDoc(doc(db, "queue", patientId), {
+    await withTimeout(setDoc(doc(db, "queue", patientId), {
       patientId,
       doctorId: pData.doctorAssigned,
       department: pData.department,
       status: "waiting",
       priorityScore: score,
       checkInTime
-    });
+    }), 2000);
 
     if (pData.doctorAssigned) {
       const docRef = doc(db, "doctors", pData.doctorAssigned);
       const doctor = state.doctors.find(d => d.doctorId === pData.doctorAssigned);
       if (doctor) {
-        await updateDoc(docRef, {
+        withTimeout(updateDoc(docRef, {
           queueLength: (doctor.queueLength || 0) + 1
-        });
+        }), 2000);
       }
     }
 
-    await logAction("Patient Check-in", receptionistName, `Checked in patient ${pData.name} (${patientId})`);
+    logAction("Patient Check-in", receptionistName, `Checked in patient ${pData.name} (${patientId})`);
   } catch (e) {
-    console.error("Check-in database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      const checkInTime = new Date().toISOString();
-      const score = calculatePriorityScore({
-        ...pData,
-        checkInTime
-      });
-      pData.status = "CheckedIn";
-      pData.checkInTime = checkInTime;
-      pData.priorityScore = score;
-      pData.updatedAt = new Date().toISOString();
-
-      if (pData.doctorAssigned) {
-        const doctor = state.doctors.find(d => d.doctorId === pData.doctorAssigned);
-        if (doctor) {
-          doctor.queueLength = (doctor.queueLength || 0) + 1;
-        }
-      }
-      processDSAModels();
-      notify();
-    }
+    console.warn("Check-in background sync warning:", e);
   }
 }
 
 export async function emergencyOverride(patientId, newEmergencyLevel, performedBy) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (!pData) throw new Error("Patient not found");
+
+  const checkInTime = pData.checkInTime || new Date().toISOString();
+  pData.emergencyLevel = newEmergencyLevel;
+  pData.checkInTime = checkInTime;
+  pData.priorityScore = calculatePriorityScore(pData);
+  pData.updatedAt = new Date().toISOString();
+
+  processDSAModels();
+  notify();
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (!pData) throw new Error("Patient not found");
-
-    const checkInTime = pData.checkInTime || new Date().toISOString();
-    const updatedPatient = {
-      ...pData,
+    await withTimeout(updateDoc(patientRef, {
       emergencyLevel: newEmergencyLevel,
-      checkInTime
-    };
-
-    const newScore = calculatePriorityScore(updatedPatient);
-
-    await updateDoc(patientRef, {
-      emergencyLevel: newEmergencyLevel,
-      priorityScore: newScore,
-      updatedAt: new Date().toISOString()
-    });
+      priorityScore: pData.priorityScore,
+      updatedAt: pData.updatedAt
+    }), 2000);
 
     const qRef = doc(db, "queue", patientId);
-    await updateDoc(qRef, {
-      priorityScore: newScore
-    }).catch(() => {});
+    withTimeout(updateDoc(qRef, {
+      priorityScore: pData.priorityScore
+    }), 2000).catch(() => {});
 
-    await logAction("Emergency Override", performedBy, `Updated emergency level of ${pData.name} to ${newEmergencyLevel}`);
+    logAction("Emergency Override", performedBy, `Updated emergency level of ${pData.name} to ${newEmergencyLevel}`);
   } catch (e) {
-    console.error("Emergency override database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      const checkInTime = pData.checkInTime || new Date().toISOString();
-      pData.emergencyLevel = newEmergencyLevel;
-      pData.checkInTime = checkInTime;
-      pData.priorityScore = calculatePriorityScore(pData);
-      pData.updatedAt = new Date().toISOString();
-      processDSAModels();
-      notify();
-    }
+    console.warn("Emergency override background sync warning:", e);
   }
 }
 
 export async function assignDoctor(patientId, departmentName, doctorId, performedBy) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (!pData) throw new Error("Patient not found");
+
+  const oldDoctorId = pData.doctorAssigned;
+  pData.department = departmentName;
+  pData.doctorAssigned = doctorId;
+  pData.updatedAt = new Date().toISOString();
+
+  if (oldDoctorId) {
+    const oldDoc = state.doctors.find(d => d.doctorId === oldDoctorId);
+    if (oldDoc) {
+      oldDoc.queueLength = Math.max(0, (oldDoc.queueLength || 0) - 1);
+    }
+  }
+
+  if (doctorId) {
+    const newDoc = state.doctors.find(d => d.doctorId === doctorId);
+    if (newDoc) {
+      newDoc.queueLength = (newDoc.queueLength || 0) + 1;
+    }
+  }
+  processDSAModels();
+  notify();
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (!pData) throw new Error("Patient not found");
-
-    const oldDoctorId = pData.doctorAssigned;
-
-    await updateDoc(patientRef, {
+    await withTimeout(updateDoc(patientRef, {
       department: departmentName,
       doctorAssigned: doctorId,
       updatedAt: new Date().toISOString()
-    });
+    }), 2000);
 
     const qRef = doc(db, "queue", patientId);
-    await updateDoc(qRef, {
+    withTimeout(updateDoc(qRef, {
       department: departmentName,
       doctorId: doctorId
-    }).catch(() => {});
-
-    if (oldDoctorId) {
-      const oldDocRef = doc(db, "doctors", oldDoctorId);
-      const oldDoc = state.doctors.find(d => d.doctorId === oldDoctorId);
-      if (oldDoc) {
-        await updateDoc(oldDocRef, {
-          queueLength: Math.max(0, (oldDoc.queueLength || 0) - 1)
-        });
-      }
-    }
-
-    if (doctorId) {
-      const newDocRef = doc(db, "doctors", doctorId);
-      const newDoc = state.doctors.find(d => d.doctorId === doctorId);
-      if (newDoc) {
-        await updateDoc(newDocRef, {
-          queueLength: (newDoc.queueLength || 0) + 1
-        });
-      }
-    }
+    }), 2000).catch(() => {});
 
     const docObj = state.doctors.find(d => d.doctorId === doctorId);
-    await logAction("Assign Doctor", performedBy, `Assigned patient ${pData.name} to Dr. ${docObj ? docObj.name : 'Unassigned'}`);
+    logAction("Assign Doctor", performedBy, `Assigned patient ${pData.name} to Dr. ${docObj ? docObj.name : 'Unassigned'}`);
   } catch (e) {
-    console.error("Assign doctor database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      const oldDoctorId = pData.doctorAssigned;
-      pData.department = departmentName;
-      pData.doctorAssigned = doctorId;
-      pData.updatedAt = new Date().toISOString();
-
-      if (oldDoctorId) {
-        const oldDoc = state.doctors.find(d => d.doctorId === oldDoctorId);
-        if (oldDoc) {
-          oldDoc.queueLength = Math.max(0, (oldDoc.queueLength || 0) - 1);
-        }
-      }
-
-      if (doctorId) {
-        const newDoc = state.doctors.find(d => d.doctorId === doctorId);
-        if (newDoc) {
-          newDoc.queueLength = (newDoc.queueLength || 0) + 1;
-        }
-      }
-      processDSAModels();
-      notify();
-    }
+    console.warn("Assign doctor background sync warning:", e);
   }
 }
 
 export async function startConsultation(patientId, doctorId, doctorName) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (pData) {
+    pData.status = "InConsultation";
+    pData.doctorAssigned = doctorId;
+    pData.updatedAt = new Date().toISOString();
+    processDSAModels();
+    notify();
+  }
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    await updateDoc(patientRef, {
+    await withTimeout(updateDoc(patientRef, {
       status: "InConsultation",
       doctorAssigned: doctorId,
       updatedAt: new Date().toISOString()
-    });
+    }), 2000);
 
     const qRef = doc(db, "queue", patientId);
-    await updateDoc(qRef, {
+    withTimeout(updateDoc(qRef, {
       status: "in_consultation"
-    }).catch(() => {});
+    }), 2000).catch(() => {});
 
-    await logAction("Start Consultation", `Dr. ${doctorName}`, `Started consultation with patient (${patientId})`);
+    logAction("Start Consultation", `Dr. ${doctorName}`, `Started consultation with patient (${patientId})`);
   } catch (e) {
-    console.error("Start consultation database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      pData.status = "InConsultation";
-      pData.doctorAssigned = doctorId;
-      pData.updatedAt = new Date().toISOString();
-      processDSAModels();
-      notify();
-    }
+    console.warn("Start consultation background sync warning:", e);
   }
 }
 
 export async function completeConsultation(patientId, doctorId, doctorName, notes, prescription) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (pData) {
+    pData.status = "Completed";
+    pData.medicalNotes = notes || "";
+    pData.prescription = prescription || "";
+    pData.updatedAt = new Date().toISOString();
+  }
+  const doctor = state.doctors.find(d => d.doctorId === doctorId);
+  if (doctor) {
+    doctor.patientsCompletedToday = (doctor.patientsCompletedToday || 0) + 1;
+    doctor.queueLength = Math.max(0, (doctor.queueLength || 0) - 1);
+  }
+  processDSAModels();
+  notify();
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    await updateDoc(patientRef, {
+    await withTimeout(updateDoc(patientRef, {
       status: "Completed",
       medicalNotes: notes || "",
       prescription: prescription || "",
       updatedAt: new Date().toISOString()
-    });
+    }), 2000);
 
-    await deleteDoc(doc(db, "queue", patientId));
+    withTimeout(deleteDoc(doc(db, "queue", patientId)), 2000).catch(() => {});
 
-    const docRef = doc(db, "doctors", doctorId);
-    const doctor = state.doctors.find(d => d.doctorId === doctorId);
     if (doctor) {
-      await updateDoc(docRef, {
-        patientsCompletedToday: (doctor.patientsCompletedToday || 0) + 1,
-        queueLength: Math.max(0, (doctor.queueLength || 0) - 1)
-      });
+      const docRef = doc(db, "doctors", doctorId);
+      withTimeout(updateDoc(docRef, {
+        patientsCompletedToday: doctor.patientsCompletedToday,
+        queueLength: doctor.queueLength
+      }), 2000);
     }
 
-    await addDoc(collection(db, "appointments"), {
+    withTimeout(addDoc(collection(db, "appointments"), {
       patientId,
       doctorId,
       doctorName,
@@ -809,84 +784,63 @@ export async function completeConsultation(patientId, doctorId, doctorName, note
       prescription: prescription || "",
       status: "completed",
       createdAt: new Date().toISOString()
-    });
+    }), 2000);
 
-    await logAction("Complete Consultation", `Dr. ${doctorName}`, `Completed consultation and wrote prescription for ${patientId}`);
+    logAction("Complete Consultation", `Dr. ${doctorName}`, `Completed consultation for ${patientId}`);
   } catch (e) {
-    console.error("Complete consultation database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      pData.status = "Completed";
-      pData.medicalNotes = notes || "";
-      pData.prescription = prescription || "";
-      pData.updatedAt = new Date().toISOString();
-    }
-    const doctor = state.doctors.find(d => d.doctorId === doctorId);
-    if (doctor) {
-      doctor.patientsCompletedToday = (doctor.patientsCompletedToday || 0) + 1;
-      doctor.queueLength = Math.max(0, (doctor.queueLength || 0) - 1);
-    }
-    processDSAModels();
-    notify();
+    console.warn("Complete consultation background sync warning:", e);
   }
 }
 
 export async function skipPatient(patientId, doctorId, doctorName) {
+  const pData = state.patients.find(p => p.patientId === patientId);
+  if (pData) {
+    pData.status = "Skipped";
+    pData.updatedAt = new Date().toISOString();
+  }
+  const doctor = state.doctors.find(d => d.doctorId === doctorId);
+  if (doctor) {
+    doctor.queueLength = Math.max(0, (doctor.queueLength || 0) - 1);
+  }
+  processDSAModels();
+  notify();
+
   try {
     const patientRef = doc(db, "patients", patientId);
-    await updateDoc(patientRef, {
+    await withTimeout(updateDoc(patientRef, {
       status: "Skipped",
       updatedAt: new Date().toISOString()
-    });
+    }), 2000);
 
     const qRef = doc(db, "queue", patientId);
-    await updateDoc(qRef, {
+    withTimeout(updateDoc(qRef, {
       status: "skipped"
-    }).catch(() => {});
+    }), 2000).catch(() => {});
 
-    const docRef = doc(db, "doctors", doctorId);
-    const doctor = state.doctors.find(d => d.doctorId === doctorId);
-    if (doctor) {
-      await updateDoc(docRef, {
-        queueLength: Math.max(0, (doctor.queueLength || 0) - 1)
-      });
-    }
-
-    await logAction("Skip Patient", `Dr. ${doctorName}`, `Skipped patient ${patientId} in queue.`);
+    logAction("Skip Patient", `Dr. ${doctorName}`, `Skipped patient ${patientId}`);
   } catch (e) {
-    console.error("Skip patient database write failed, falling back to local simulation:", e);
-    const pData = state.patients.find(p => p.patientId === patientId);
-    if (pData) {
-      pData.status = "Skipped";
-      pData.updatedAt = new Date().toISOString();
-    }
-    const doctor = state.doctors.find(d => d.doctorId === doctorId);
-    if (doctor) {
-      doctor.queueLength = Math.max(0, (doctor.queueLength || 0) - 1);
-    }
-    processDSAModels();
-    notify();
+    console.warn("Skip patient background sync warning:", e);
   }
 }
 
 export async function toggleDoctorStatus(doctorId, currentStatus, doctorName) {
-  try {
-    const docRef = doc(db, "doctors", doctorId);
+  const doctor = state.doctors.find(d => d.doctorId === doctorId);
+  if (doctor) {
     const newStatus = currentStatus === "active" ? "paused" : "active";
-    await updateDoc(docRef, {
-      status: newStatus,
-      availability: newStatus === "active"
-    });
-    await logAction(newStatus === "active" ? "Resume Queue" : "Pause Queue", `Dr. ${doctorName}`, `Toggled queue state to ${newStatus}`);
-  } catch (e) {
-    console.error("Toggle doctor status database write failed, falling back to local simulation:", e);
-    const doctor = state.doctors.find(d => d.doctorId === doctorId);
-    if (doctor) {
-      const newStatus = currentStatus === "active" ? "paused" : "active";
-      doctor.status = newStatus;
-      doctor.availability = (newStatus === "active");
-      processDSAModels();
-      notify();
+    doctor.status = newStatus;
+    doctor.availability = (newStatus === "active");
+    processDSAModels();
+    notify();
+
+    try {
+      const docRef = doc(db, "doctors", doctorId);
+      await withTimeout(updateDoc(docRef, {
+        status: newStatus,
+        availability: (newStatus === "active")
+      }), 2000);
+      logAction(newStatus === "active" ? "Resume Queue" : "Pause Queue", `Dr. ${doctorName}`, `Toggled queue state to ${newStatus}`);
+    } catch (e) {
+      console.warn("Toggle doctor status background sync warning:", e);
     }
   }
 }

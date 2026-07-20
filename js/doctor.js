@@ -70,12 +70,26 @@ subscribe((state) => {
   if (state.loading || !state.currentUser || !state.userData) return;
 
   currentDoctorId = state.currentUser.uid;
-  currentDoctorProfile = state.doctors.find(d => d.doctorId === currentDoctorId);
-  sortedDoctorQueue = state.doctorQueues[currentDoctorId] || [];
+  currentDoctorProfile = state.doctors.find(
+    d => d.doctorId === currentDoctorId ||
+         (d.email && state.currentUser.email && d.email.toLowerCase() === state.currentUser.email.toLowerCase()) ||
+         (d.department && state.userData.department && d.department.toLowerCase() === state.userData.department.toLowerCase())
+  );
+
+  const targetDocId = currentDoctorProfile ? currentDoctorProfile.doctorId : currentDoctorId;
+  sortedDoctorQueue = state.doctorQueues[targetDocId] || state.doctorQueues[currentDoctorId] || [];
+
+  // Fallback: If queue map key hasn't indexed yet, match all checked-in patients in department or hospital
+  if (sortedDoctorQueue.length === 0) {
+    sortedDoctorQueue = state.patients.filter(
+      p => p.status === "CheckedIn" &&
+      (!currentDoctorProfile?.department || !p.department || p.department.toLowerCase() === currentDoctorProfile.department.toLowerCase())
+    );
+  }
 
   // Find if there is an active patient in consultation room
   activeConsultingPatient = state.patients.find(
-    p => p.doctorAssigned === currentDoctorId && p.status === "InConsultation"
+    p => (p.doctorAssigned === targetDocId || p.doctorAssigned === currentDoctorId) && p.status === "InConsultation"
   );
 
   // 1. Populate Doctor Meta Details
@@ -213,9 +227,9 @@ function renderMiniQueueSidebar() {
 
 // Action: Handle starting consultation
 async function handleCallPatient(patientId) {
-  if (!currentDoctorProfile || isSubmitting) return;
+  if (isSubmitting) return;
 
-  if (currentDoctorProfile.status === "paused") {
+  if (currentDoctorProfile && currentDoctorProfile.status === "paused") {
     showToast("Resume consultations queue before calling next patient.", "warning");
     return;
   }
@@ -227,7 +241,9 @@ async function handleCallPatient(patientId) {
 
   isSubmitting = true;
   try {
-    await startConsultation(patientId, currentDoctorId, currentDoctorProfile.name);
+    const docId = currentDoctorProfile ? currentDoctorProfile.doctorId : currentDoctorId;
+    const docName = currentDoctorProfile ? currentDoctorProfile.name : "Specialist";
+    await startConsultation(patientId, docId, docName);
     showToast("Patient called to consultation room.", "success");
     // Switch to consult tab automatically
     switchTab("consult");
