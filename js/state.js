@@ -4,7 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+} from "firebase/auth";
 import {
   collection,
   onSnapshot,
@@ -15,7 +15,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+} from "firebase/firestore";
 
 import HashMap from './algorithms/HashMap.js';
 import Graph from './algorithms/Graph.js';

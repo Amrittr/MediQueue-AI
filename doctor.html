@@ -112,11 +112,29 @@
               <div id="empty-consultation-state" class="clinic-card" style="text-align: center; padding: 3.5rem; display: block;">
                 <span class="material-icons-outlined" style="font-size: 3rem; color: var(--color-text-light);">assignment_ind</span>
                 <h3 style="font-weight: 700; color: var(--color-text-dark); margin-top: 1rem;">No Active Patient</h3>
-                <p style="font-size: 0.85rem; color: var(--color-text-medium); margin-top: 0.25rem; margin-bottom: 1.5rem;">There is no patient currently inside your consulting room. Use the queue control panel to call the next patient.</p>
+                <p style="font-size: 0.85rem; color: var(--color-text-medium); margin-top: 0.25rem; margin-bottom: 1.5rem;">There is no patient currently inside your consulting room. Use the queue table below to call the next patient into your room.</p>
                 <button id="call-next-empty-btn" class="btn btn-primary">
                   <span class="material-icons-outlined" style="font-size: 1.15rem;">play_arrow</span>
                   Call Next Patient
                 </button>
+              </div>
+
+              <!-- Main Queue Table Container -->
+              <div class="table-container" style="margin-top: 1.5rem;">
+                <h3 style="font-size: 0.85rem; font-weight: 700; color: var(--color-text-medium); text-transform: uppercase; margin-bottom: 0.75rem; letter-spacing: 0.5px;">📋 Waiting Patient Lobby Queue</h3>
+                <table class="clinic-table">
+                  <thead>
+                    <tr>
+                      <th>Patient Info & Slot</th>
+                      <th>Priority Score</th>
+                      <th>Emergency Level</th>
+                      <th style="text-align: right;">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="waiting-queue-body">
+                    <!-- Dynamic rows -->
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -126,13 +144,13 @@
                 <table class="clinic-table">
                   <thead>
                     <tr>
-                      <th>Patient Info</th>
+                      <th>Patient Info & Slot</th>
                       <th>Priority Score</th>
                       <th>Emergency Level</th>
                       <th style="text-align: right;">Action</th>
                     </tr>
                   </thead>
-                  <tbody id="waiting-queue-body">
+                  <tbody id="waiting-queue-body-2">
                     <!-- Dynamic rows -->
                   </tbody>
                 </table>

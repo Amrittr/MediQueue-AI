@@ -101,8 +101,7 @@ subscribe((state) => {
 
   // Universal Doctor Access: Every doctor sees all waiting and booked patients across the hospital
   const waitingPatients = state.patients.filter(
-    p => (p.status === "CheckedIn" || p.status === "Registered" || p.status === "Scheduled" || p.tokenNumber) &&
-         p.status !== "Completed" && p.status !== "InConsultation"
+    p => p.status !== "Completed" && p.status !== "InConsultation"
   );
 
   const docPQ = new PriorityQueue();
@@ -184,14 +183,17 @@ function getEmergencyBadgeClass(level) {
 
 function renderQueueControlTable() {
   const tableBody = document.getElementById("waiting-queue-body");
+  const tableBody2 = document.getElementById("waiting-queue-body-2");
   if (!tableBody) return;
 
   if (sortedDoctorQueue.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--color-text-light);">No patients in queue lobby.</td></tr>`;
+    const emptyHtml = `<tr><td colspan="4" style="text-align: center; color: var(--color-text-light); padding: 1.5rem;">No patients currently in queue lobby.</td></tr>`;
+    tableBody.innerHTML = emptyHtml;
+    if (tableBody2) tableBody2.innerHTML = emptyHtml;
     return;
   }
 
-  tableBody.innerHTML = sortedDoctorQueue.map((p, index) => {
+  const rowsHtml = sortedDoctorQueue.map((p, index) => {
     return `
       <tr>
         <td>
@@ -218,6 +220,9 @@ function renderQueueControlTable() {
       </tr>
     `;
   }).join("");
+
+  tableBody.innerHTML = rowsHtml;
+  if (tableBody2) tableBody2.innerHTML = rowsHtml;
 
   // Attach button triggers
   document.querySelectorAll(".call-patient-btn").forEach(btn => {
