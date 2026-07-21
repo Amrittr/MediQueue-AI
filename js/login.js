@@ -56,13 +56,13 @@ form.addEventListener("submit", async (e) => {
 
 // Quick demo account triggers
 document.getElementById("quick-doctor-btn")?.addEventListener("click", () => {
-  document.getElementById("email").value = "doctor@hospital.com";
-  document.getElementById("password").value = "doctor123";
+  document.getElementById("email").value = "doctor1@gmail.com";
+  document.getElementById("password").value = "123456";
   form.dispatchEvent(new Event("submit"));
 });
 
 document.getElementById("quick-patient-btn")?.addEventListener("click", () => {
-  document.getElementById("email").value = "patient@hospital.com";
-  document.getElementById("password").value = "patient123";
+  document.getElementById("email").value = "patient1@gmail.com";
+  document.getElementById("password").value = "123456";
   form.dispatchEvent(new Event("submit"));
 });
