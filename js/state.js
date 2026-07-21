@@ -184,6 +184,25 @@ function startSync() {
   unsubscribes.forEach(unsub => unsub());
   unsubscribes = [];
 
+  // Preload cached patients from local browser storage for 0ms instant display
+  try {
+    const cached = localStorage.getItem("mediqueue_patients");
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        parsed.forEach(item => {
+          let existing = state.patients.find(p => p.patientId === item.patientId);
+          if (existing) {
+            Object.assign(existing, item);
+          } else {
+            state.patients.push(item);
+          }
+        });
+        processDSAModels();
+      }
+    }
+  } catch (e) {}
+
   const unsubPatients = onSnapshot(collection(db, "patients"), (snapshot) => {
     state.patients = snapshot.docs.map(docObj => ({ id: docObj.id, ...docObj.data() }));
     processDSAModels();
@@ -1122,9 +1141,12 @@ export async function bookAppointment(patientId, appointmentData) {
   (async () => {
     try {
       const appointmentId = "A-" + Math.floor(100000 + Math.random() * 900000);
-      withTimeout(setDoc(doc(db, "appointments", appointmentId), {
+      await setDoc(doc(db, "appointments", appointmentId), {
         appointmentId,
         patientId,
+        patientName: patientDataToSave.name,
+        name: patientDataToSave.name,
+        email: patientDataToSave.email,
         doctorId: assignedDoctorId,
         doctorName: assignedDoctorName,
         department: appointmentData.department,
@@ -1134,19 +1156,20 @@ export async function bookAppointment(patientId, appointmentData) {
         notes: appointmentData.notes || "",
         tokenNumber,
         createdAt: nowStr
-      }), 2000).catch(() => {});
+      });
 
       const patientRef = doc(db, "patients", patientId);
-      withTimeout(setDoc(patientRef, patientDataToSave, { merge: true }), 2000).catch(() => {});
+      await setDoc(patientRef, patientDataToSave, { merge: true });
 
-      withTimeout(setDoc(doc(db, "queue", patientId), {
+      await setDoc(doc(db, "queue", patientId), {
         patientId,
+        patientName: patientDataToSave.name,
         doctorId: assignedDoctorId,
         department: appointmentData.department,
         status: "waiting",
         priorityScore: 50,
         checkInTime: nowStr
-      }), 2000).catch(() => {});
+      });
 
       logAction("Book Appointment", "Patient", `Booked appointment ${appointmentId} with Dr. ${assignedDoctorName} (Auto-Checked In, Token: ${tokenNumber})`);
     } catch (e) {
