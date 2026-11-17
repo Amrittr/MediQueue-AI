@@ -75,7 +75,7 @@ npm install
 ```
 
 ### 2. Configure Firebase Environment Variables
-Verify or create a `.env` file at the root of the project:
+Copy `.env.example` to `.env` (`cp .env.example .env`) and fill in your Firebase web app config, for example:
 ```env
 VITE_FIREBASE_API_KEY=AIzaSyAOsshe93Hd3lkDr5xqieBRL1fhgLG_tMY
 VITE_FIREBASE_AUTH_DOMAIN=dsa-project-570fb.firebaseapp.com
